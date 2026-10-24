@@ -1,0 +1,2199 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نظام إدارة المكتب الاستشاري</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#e6f6fe;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#dbeafe;--brand:#0284c7;--brand2:#0ea5e9;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--info:#0891b2;--side1:#0369a1;--side2:#0ea5e9;--gold:#d4af37}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 "Segoe UI",Tahoma,Arial,sans-serif}
+h1,h2,h3{margin:0}
+button{font:inherit;cursor:pointer;border-radius:10px;padding:8px 14px;border:1px solid transparent;background:#fff;color:var(--ink)}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid #bae6fd;border-radius:10px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid #7dd3fc;border-color:#38bdf8}
+input:disabled,select:disabled,textarea:disabled{background:#f1f5f9;color:#64748b}
+input[type=checkbox],input[type=radio]{width:auto}
+input[type=range]{padding:0;border:none;accent-color:var(--brand)}
+input[type=color]{padding:2px;height:40px}
+input[type=file]{padding:6px;background:#f0f9ff;border-style:dashed}
+label{display:flex;flex-direction:column;gap:5px;font-size:14px;color:#334155}
+label.chk{flex-direction:row;align-items:center;gap:8px}
+.primary{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 4px 12px -4px rgba(2,132,199,.6)}
+.ghost{background:#fff;border-color:#bae6fd}
+.ghost:hover{background:#f0f9ff}
+.danger{background:#fff;color:var(--bad);border-color:#fecaca}
+.okb{background:var(--ok);color:#fff}
+.x{background:none;border:none;color:var(--bad);font-size:16px;padding:4px 8px}
+.sm{padding:5px 10px;font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(3,105,161,.06)}
+.card h3{font-size:16px}
+.empty{text-align:center;color:var(--muted);padding:36px 10px}
+.center{min-height:100vh;display:grid;place-items:center;padding:20px;text-align:center}
+
+/* الواجهة الخارجية */
+.ohead{background:linear-gradient(135deg,var(--side1),var(--side2));color:#fff;padding:12px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ohead .ghost{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}
+.ohead .ghost.on{background:#fff;color:var(--side1)}
+.ohead .cnt{margin:0 4px 0 0}
+.pick-card{background:#fff;border:1px solid var(--line);border-top:6px solid var(--c);border-radius:16px;padding:18px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.pick-card:hover{transform:translateY(-3px);box-shadow:0 14px 28px -14px rgba(3,105,161,.5)}
+
+/* هيكل المشروع */
+.shell{display:flex;min-height:100vh}
+.side{width:255px;flex:none;background:linear-gradient(180deg,var(--side1),var(--side2));color:#f0f9ff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;z-index:70}
+.brand{padding:18px;display:flex;gap:10px;align-items:center;color:#fff;border-bottom:1px solid rgba(255,255,255,.15)}
+.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#f5d77a,#d4af37);display:grid;place-items:center;font-weight:800;color:#fff;flex:none}
+.projbox{margin:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25)}
+.nav{padding:6px 10px;display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:#f0f9ff;padding:10px 12px;border-radius:10px;text-align:right}
+.nav button:hover{background:rgba(255,255,255,.12)}
+.nav button.on{background:rgba(255,255,255,.28);font-weight:600}
+.ic{width:18px;height:18px;flex:none}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.cnt{margin-right:auto;background:#ef4444;color:#fff;border-radius:99px;font-size:11px;padding:0 7px;line-height:18px}
+.me{margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.15);display:flex;flex-direction:column;gap:10px;color:#fff}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;flex:none}
+.exitbtn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.45);width:100%;display:flex;gap:8px;align-items:center;justify-content:center}
+.mainwrap{flex:1;min-width:0}
+.topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:10px}
+.topbar h2{font-size:18px}
+.menu{display:none}
+main{padding:20px;max-width:1280px;margin:0 auto}
+.backdrop{display:none}
+.sync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.sync.busy i{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+/* شارات */
+.badge{font-size:12px;padding:2px 10px;border-radius:99px;background:#e0f2fe;color:#0369a1;white-space:nowrap;display:inline-block}
+.badge.ok{background:#dcfce7;color:#15803d}
+.badge.warn{background:#fef3c7;color:#b45309}
+.badge.bad{background:#fee2e2;color:#b91c1c}
+.badge.gold{background:#fef9c3;color:#a16207;border:1px solid #fde047}
+.role{font-size:12px;padding:2px 10px;border-radius:99px;white-space:nowrap;display:inline-block}
+.role.admin{background:#ede9fe;color:#6d28d9}
+.role.staff{background:#dbeafe;color:#1d4ed8}
+.role.contractor{background:#ffedd5;color:#c2410c}
+
+/* بطاقات الإحصاء */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.tile{border-radius:16px;padding:14px 16px;color:#fff;box-shadow:0 8px 20px -10px rgba(0,0,0,.4);font-size:13px}
+.tile b{display:block;font-size:26px;line-height:1.3}
+.t1{background:linear-gradient(135deg,#0284c7,#38bdf8)}
+.t2{background:linear-gradient(135deg,#059669,#34d399)}
+.t3{background:linear-gradient(135deg,#d97706,#fbbf24)}
+.t4{background:linear-gradient(135deg,#dc2626,#f87171)}
+.t5{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+.t6{background:linear-gradient(135deg,#0891b2,#22d3ee)}
+
+/* الإنجاز */
+.bar{height:10px;background:#e0f2fe;border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px}
+.barlbl{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:3px}
+.phead{border-radius:18px;padding:18px 20px;color:#fff;background:linear-gradient(135deg,var(--c),#0c4a6e 170%);margin-bottom:16px}
+.phead .bar{background:rgba(255,255,255,.3)}
+.phead .bar i{background:#fff}
+.phead .barlbl{color:rgba(255,255,255,.9)}
+.phead .ghost{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}
+.phead .danger{background:rgba(255,255,255,.15);color:#fee2e2;border-color:rgba(254,202,202,.6)}
+
+/* النماذج والمنازل */
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.lg{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid var(--line);border-right:6px solid var(--c);background:#fff}
+.sw{width:22px;height:22px;border-radius:6px;background:var(--c);flex:none}
+.ficon{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--c);color:#fff;flex:none}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:7px}
+.h{position:relative;height:60px;border-radius:12px;border:2px solid var(--c);background:linear-gradient(to top,var(--c) var(--p),#fff var(--p));padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.h span{background:rgba(255,255,255,.92);border-radius:6px;padding:0 5px;font-weight:700;font-size:13px}
+.h small{font-size:10.5px;background:rgba(255,255,255,.85);border-radius:5px;padding:0 4px;margin-top:2px}
+.h.al::after{content:'!';position:absolute;top:-6px;left:-6px;width:17px;height:17px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid #fff}
+.hint{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.sumst{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 18px}
+.ent{background:#fff;border:1px solid var(--line);border-right:6px solid var(--c);border-radius:12px;padding:12px;cursor:pointer}
+
+/* الفحوصات */
+.cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.catb{border:1px solid #bae6fd;background:#fff;border-radius:99px;padding:6px 14px;font-size:13.5px;display:flex;gap:6px;align-items:center}
+.catb b{background:#e0f2fe;color:#0369a1;border-radius:99px;padding:0 8px;font-size:12px}
+.catb.on{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:transparent}
+.catb.on b{background:rgba(255,255,255,.25);color:#fff}
+.catb.miss{border-color:#fcd34d;background:#fffbeb}
+.catb.miss.on{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.tbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.tbar input,.tbar select{width:auto;min-width:150px}
+.ttable td{white-space:nowrap}
+.ttable td.wrap{white-space:normal;min-width:140px}
+.fcount{border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;border-radius:99px;padding:2px 10px;font-size:12.5px}
+.files{display:flex;flex-direction:column;gap:6px}
+.file{display:flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:#f8fafc;font-size:13.5px}
+.file .fi{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;flex:none}
+.file button.lnk{background:none;border:none;color:var(--brand);padding:0;text-align:right}
+.catrow{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px}
+
+/* الجداول والنماذج */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle}
+th{color:var(--muted);font-weight:600;background:#f0f9ff;white-space:nowrap}
+tbody tr:hover{background:#f8fdff}
+.tablewrap{overflow-x:auto}
+.mrow{display:grid;gap:8px;align-items:center;grid-template-columns:2fr 1fr 1fr auto;margin-bottom:8px}
+.srow{display:grid;gap:8px;align-items:center;grid-template-columns:2fr 1.4fr .8fr 1.6fr auto;padding:8px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:#fff}
+.srow.nopct{grid-template-columns:2fr 1.4fr .8fr auto}
+.rng{display:flex;align-items:center;gap:8px}
+.rng output{min-width:42px;font-weight:700;color:var(--brand);text-align:center}
+.ctl{display:flex;gap:2px}
+.ctl button{padding:4px 7px;background:#f0f9ff}
+.hst{display:grid;grid-template-columns:1.6fr 2fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.tb{font-size:11.5px;padding:1px 8px;border-radius:99px;background:#f1f5f9;color:#475569;margin-right:6px;white-space:nowrap}
+.tb.ok{background:#dcfce7;color:#15803d}
+.tb.bad{background:#fee2e2;color:#b91c1c}
+.stsel{width:auto;padding:3px 8px;border-radius:99px;border:none;font-size:13px}
+.st-pending{background:#fef3c7;color:#b45309}
+.st-pass{background:#dcfce7;color:#15803d}
+.st-fail{background:#fee2e2;color:#b91c1c}
+.foot{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.lday{font-weight:700;margin:14px 0 6px;color:#334155}
+.lrow{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.lrow time{color:var(--muted);font-size:12.5px;min-width:46px}
+.visit{border-bottom:1px solid var(--line);padding:10px 0}
+.visit.open{border-right:4px solid var(--warn);padding-right:10px}
+.banner{background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1px solid #7dd3fc;border-radius:14px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* الدخول */
+.authwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(160deg,#bae6fd,#7dd3fc 45%,#38bdf8)}
+.authbox{width:min(440px,100%);border:3px solid var(--gold);border-radius:20px;box-shadow:0 0 0 6px rgba(212,175,55,.22),0 25px 50px -20px rgba(3,105,161,.55);margin:0}
+.tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:5px;margin-bottom:16px;flex-wrap:wrap}
+.tab{background:none;border:none;padding:8px 14px;color:var(--muted);border-radius:10px}
+.tab.on{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;font-weight:600}
+.rolepick{display:flex;flex-direction:column;gap:8px}
+.rolecard{flex-direction:row;align-items:flex-start;gap:10px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer}
+.rolecard:has(input:checked){border-color:var(--brand);background:#f0f9ff}
+.rolecard input{margin-top:5px}
+
+/* النوافذ */
+.modal{position:fixed;inset:0;background:rgba(12,74,110,.45);display:flex;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto;z-index:80}
+.modal[hidden]{display:none}
+.mbox{background:#fff;border-radius:18px;padding:18px;width:min(760px,100%);box-shadow:0 30px 60px -20px rgba(0,0,0,.5)}
+.mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+.mh b{font-size:17px}
+h4{margin:14px 0 8px}
+.pick{display:flex;gap:12px;align-items:center;text-align:right;background:#fff;border:2px solid var(--line);padding:14px;width:100%;border-radius:14px}
+.pick:hover{border-color:var(--brand);background:#f0f9ff}
+.pick .ficon{width:46px;height:46px}
+
+/* المهندس الذكي */
+.ai{position:fixed;left:16px;bottom:16px;width:min(440px,calc(100vw - 32px));height:min(660px,calc(100vh - 32px));background:#fff;border-radius:20px;box-shadow:0 25px 60px -12px rgba(12,74,110,.55);display:flex;flex-direction:column;z-index:60;overflow:hidden;border:2px solid #7dd3fc}
+.ai[hidden]{display:none}
+.aih{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;padding:14px 16px;display:flex;gap:10px;align-items:center}
+.aih .x{color:#fff}
+.aimsgs{flex:1;overflow:auto;padding:12px;background:#f0f9ff}
+.msg{max-width:92%;padding:9px 13px;border-radius:14px;margin-bottom:9px;font-size:14px;line-height:1.7}
+.msg.user{background:#0284c7;color:#fff;margin-right:auto;border-bottom-left-radius:4px;width:fit-content}
+.msg.bot{background:#fff;border:1px solid var(--line);border-bottom-right-radius:4px}
+.msg p{margin:0 0 4px}
+.msg ul{margin:2px 0 6px;padding-right:18px}
+.aichips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line)}
+.chip{border:1px solid #7dd3fc;background:#f0f9ff;color:#0369a1;border-radius:99px;padding:3px 11px;font-size:12.5px}
+.aiform{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.typing{color:var(--muted);font-size:13px;padding:4px 8px}
+
+.toast{position:fixed;bottom:22px;right:50%;transform:translateX(50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:12px;z-index:99;max-width:90vw;box-shadow:0 10px 30px -10px rgba(0,0,0,.5)}
+.toast.err{background:var(--bad)}
+.toast.ok{background:var(--ok)}
+.spin{width:34px;height:34px;border:4px solid #bae6fd;border-top-color:var(--brand);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+@media(max-width:900px){
+  .side{position:fixed;right:0;top:0;transform:translateX(105%);transition:transform .2s}
+  body.sideopen .side{transform:none}
+  body.sideopen .backdrop{display:block;position:fixed;inset:0;background:rgba(12,74,110,.45);z-index:65}
+  .menu{display:inline-flex}
+  main{padding:14px}
+}
+@media(max-width:700px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .mrow{grid-template-columns:1fr 1fr}
+  .srow,.srow.nopct{grid-template-columns:1fr}
+  .hst{grid-template-columns:1fr}
+  .topbar h2{font-size:15px}
+  .tbar input,.tbar select{flex:1}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal" class="modal" hidden><div class="mbox" id="mbody"></div></div>
+<section id="ai" class="ai" hidden>
+  <div class="aih">
+    <div class="logo" style="width:36px;height:36px">✦</div>
+    <div class="grow"><b>المهندس الذكي</b><div class="small" id="aimode"></div></div>
+    <button type="button" class="x" data-act="ai-clear" title="مسح المحادثة">⟲</button>
+    <button type="button" class="x" data-act="ai-close">✕</button>
+  </div>
+  <div class="aimsgs" id="aimsgs"></div>
+  <div class="aichips">
+    <button type="button" class="chip" data-act="ai-q" data-q="شنو الجديد اليوم؟">شنو الجديد اليوم؟</button>
+    <button type="button" class="chip" data-act="ai-q" data-q="الفحوصات الناقصة">الفحوصات الناقصة</button>
+    <button type="button" class="chip" data-act="ai-q" data-q="نسبة الإنجاز">نسبة الإنجاز</button>
+    <button type="button" class="chip" data-act="ai-q" data-q="الفحوصات الراسبة">الفحوصات الراسبة</button>
+    <button type="button" class="chip" data-act="ai-q" data-q="تقرير الأسبوع">تقرير الأسبوع</button>
+  </div>
+  <form class="aiform" id="aiform">
+    <input name="q" placeholder="اسأل: شنو وضع منزل 45؟" autocomplete="off">
+    <button class="primary">إرسال</button>
+  </form>
+</section>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<script>
+'use strict';
+
+/* ================= إعدادات الاتصال بـ Supabase ================= */
+const CONFIG = {
+  url: 'https://yloreuvbcecqqkszxhtn.supabase.co',
+  key: 'sb_publishable_QaFdjKItUfitc9wTL921cA_jOWGzyWK'
+};
+const EMAIL_DOMAIN = 'users.consulting-office.app';
+const BUCKET = 'test-files';
+const MAX_FILE = 20 * 1024 * 1024;
+const configured = !/^YOUR-/.test(CONFIG.url) && !/^YOUR-/.test(CONFIG.key) && !!window.supabase;
+const sb = configured ? window.supabase.createClient(CONFIG.url, CONFIG.key, { auth: { persistSession: true, autoRefreshToken: true } }) : null;
+
+/* ================= ثوابت وأدوات ================= */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const uuid = () => {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
+const pct = v => Math.max(0, Math.min(100, Math.round(+v || 0)));
+const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0;
+const wt = x => (x && x.w !== undefined && x.w !== '' && +x.w >= 0 ? +x.w : 1);
+const wavg = (items, val, w) => { const tot = items.reduce((a, x) => a + w(x), 0); return tot ? Math.round(items.reduce((a, x) => a + val(x) * w(x), 0) / tot) : 0; };
+const toLatin = s => String(s ?? '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+const norm = s => toLatin(s).replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
+const DAY = 864e5;
+const dkey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const hhmm = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const daysSince = ds => { const t = new Date(ds + 'T00:00:00').getTime(); return isNaN(t) ? 0 : Math.floor((new Date(dkey(Date.now()) + 'T00:00:00').getTime() - t) / DAY); };
+const fsize = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const fext = n => { const m = String(n).match(/\.([a-z0-9]{1,6})$/i); return m ? m[1].toLowerCase() : 'bin'; };
+
+const PALETTE = ['#0284c7', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5', '#0d9488', '#a16207'];
+const TYPE_LABEL = { complex: 'مجمع سكني', gov: 'مشروع عام حكومي', invest: 'استثمار' };
+const STATUS = { pending: 'قيد الفحص', pass: 'ناجح', fail: 'راسب' };
+const ROLES = { admin: 'مدير', staff: 'موظف', contractor: 'مهندس الشركة المنفذة' };
+const ROLE_DESC = {
+  admin: 'كامل الصلاحيات، والموافقة على المستخدمين الجدد',
+  staff: 'إضافة الفحوصات، وترتيب الفقرات، وتحديث نسب الإنجاز',
+  contractor: 'الاطلاع على المشروع، وإضافة الزيارات والملاحظات'
+};
+const ROLE_COLOR = { admin: '#7c3aed', staff: '#0284c7', contractor: '#ea580c' };
+const PERMS = { admin: ['*'], staff: ['progress', 'stages', 'tests', 'visits'], contractor: ['visits'] };
+const DEFAULT_CATS = ['فحوصات الطابوق', 'فحوصات التراب', 'فحوصات الكونكريت'];
+const DEFAULT_STAGES = [
+  ['الحفريات', ''], ['الدفن والحدل', 'تراب'], ['صب النظافة', 'كونكريت'], ['صب الرافت', 'كونكريت'],
+  ['صب الأعمدة', 'كونكريت'], ['البناء بالطابوق', 'طابوق'], ['صب السقف', 'كونكريت'], ['اللبخ', ''],
+  ['مد أنابيب الكهرباء', ''], ['سحب الأسلاك الكهربائية', ''], ['تركيب مفاتيح ومآخذ', ''], ['تركيب الإنارة', ''], ['تركيب لوحة التوزيع', ''],
+  ['مد أنابيب الماء', ''], ['تركيب خزان الماء', ''],
+  ['مد أنابيب المجاري', ''], ['تركيب المصارف والكلي', ''],
+  ['تركيب المغاسل والخلاطات', ''], ['تركيب الحمامات والمراحيض', ''], ['الكاشي والسيراميك', ''], ['الدهن والتشطيبات', '']
+];
+const AI_DEFAULT_MODEL = 'gemini-flash-latest';
+const UTIL_STAGES = ['مد أنابيب الكهرباء', 'سحب الأسلاك الكهربائية', 'تركيب مفاتيح ومآخذ', 'تركيب الإنارة', 'تركيب لوحة التوزيع', 'مد أنابيب الماء', 'تركيب خزان الماء', 'مد أنابيب المجاري', 'تركيب المصارف والكلي', 'تركيب المغاسل والخلاطات', 'تركيب الحمامات والمراحيض'];
+
+const IC = {
+  home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M7 15h10"/>',
+  note: '<path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h6"/>',
+  act: '<path d="M3 12h4l3 8 4-16 3 8h4"/>',
+  out: '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/>',
+  bld: '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 10h4a1 1 0 0 1 1 1v10M2 21h20M8 8h3M8 12h3M8 16h3"/>'
+};
+const icon = (n, c) => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="${c || 'currentColor'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
+
+const PID_KEY = 'ofc_sb_project';
+const S = {
+  boot: true, user: null, office: { name: '', ai_enabled: false }, projects: [], users: [],
+  p: null, view: 'home', authMode: 'login',
+  filter: { q: '', st: 'all', model: 'all' }, tf: { cat: 'all', q: '', st: 'all' },
+  chat: [], aiBusy: false, busy: false, pendingLogs: [], lastWrite: 0, stale: false, channel: null, aiStatus: null
+};
+
+/* ================= أدوات الاتصال ================= */
+async function q(promise) {
+  const { data, error } = await promise;
+  if (error) throw error;
+  return data;
+}
+async function fetchAll(make, max = 50000) {
+  const out = [];
+  for (let from = 0; from < max; from += 1000) {
+    const rows = await q(make().range(from, from + 999));
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+function errMsg(e) {
+  const m = (e && (e.message || e.error_description)) || String(e);
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'تعذر الاتصال بالخادم. تحقق من الإنترنت';
+  if (/row-level security|permission denied|violates/i.test(m)) return 'ليس لديك صلاحية لهذا الإجراء';
+  if (/JWT|token/i.test(m)) return 'انتهت الجلسة. سجّل الدخول من جديد';
+  return m;
+}
+async function api(action, payload) {
+  const { data } = await sb.auth.getSession();
+  const token = data && data.session ? data.session.access_token : CONFIG.key;
+  const res = await fetch(CONFIG.url + '/functions/v1/office-api', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CONFIG.key, Authorization: 'Bearer ' + token },
+    body: JSON.stringify(Object.assign({ action }, payload || {}))
+  });
+  let j = {};
+  try { j = await res.json(); } catch (e) { j = {}; }
+  if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
+  return j;
+}
+function setSync(busy) {
+  const el = $('.sync');
+  if (el) { el.classList.toggle('busy', busy); el.lastChild.textContent = busy ? ' جارٍ الحفظ…' : ' محفوظ'; }
+}
+
+function toast(msg, kind) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (kind || '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), kind === 'err' ? 4000 : 2800);
+}
+
+/* ================= الصلاحيات والسجل ================= */
+const can = a => { const p = PERMS[S.user && S.user.role] || []; return p.includes('*') || p.includes(a); };
+const isAdmin = () => !!S.user && S.user.role === 'admin';
+const isOwner = () => !!S.user && S.user.is_owner;
+function need(a) { if (a === 'admin' ? isAdmin() : can(a)) return true; toast('ليس لديك صلاحية لهذا الإجراء', 'err'); return false; }
+
+function logP(p, o) {
+  o.t = Date.now(); o.by = S.user ? S.user.name : ''; o.role = S.user ? S.user.role : '';
+  p.log.push(o);
+  if (p.log.length > 5000) p.log.splice(0, p.log.length - 5000);
+  S.pendingLogs.push(Object.assign({ pid: p.id }, o));
+}
+async function flushLogs() {
+  if (!S.pendingLogs.length) return;
+  const rows = S.pendingLogs.splice(0).map(o => ({
+    project_id: o.pid, t: new Date(o.t).toISOString(), by_name: o.by, role: o.role, kind: o.kind || 'other',
+    unit_id: o.unitId || '', label: o.label || '', stage: o.stage || '',
+    from_pct: o.from ?? null, to_pct: o.to ?? null, text: o.text || '', created_by: S.user.id
+  }));
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await sb.from('logs').insert(rows.slice(i, i + 500));
+    if (error) console.warn('log insert', error);
+  }
+}
+const logText = e => e.text || (e.kind === 'prog' ? `${e.label}: ${e.stage} من ${e.from}% إلى ${e.to}%` : '');
+
+/* ================= الحسابات والدخول ================= */
+const toEmail = u => `${String(u).trim().toLowerCase()}@${EMAIL_DOMAIN}`;
+
+async function doRegister(fd) {
+  const name = (fd.get('name') || '').trim();
+  const username = (fd.get('username') || '').trim().toLowerCase();
+  const password = fd.get('password') || '';
+  if (!name) return toast('اكتب الاسم الكامل', 'err');
+  if (!/^[a-z0-9._-]{3,30}$/.test(username)) return toast('اسم المستخدم من 3 إلى 30 حرفاً إنكليزياً أو أرقاماً بدون مسافات', 'err');
+  if (password.length < 6) return toast('كلمة المرور 6 أحرف على الأقل', 'err');
+  const r = await api('register', { name, username, password, role: fd.get('role') || 'staff', company: (fd.get('company') || '').trim() });
+  if (r.first) {
+    const { error } = await sb.auth.signInWithPassword({ email: toEmail(username), password });
+    if (error) throw error;
+    return afterAuth();
+  }
+  S.authMode = 'login';
+  render();
+  toast('تم إرسال طلبك. لا يمكنك الدخول حتى يوافق المدير', 'ok');
+}
+
+async function doLogin(fd) {
+  const username = (fd.get('username') || '').trim().toLowerCase();
+  const { error } = await sb.auth.signInWithPassword({ email: toEmail(username), password: fd.get('password') || '' });
+  if (error) return toast(/Invalid login/i.test(error.message) ? 'بيانات الدخول غير صحيحة' : errMsg(error), 'err');
+  await afterAuth();
+}
+
+async function afterAuth() {
+  const { data } = await sb.auth.getUser();
+  const user = data && data.user;
+  if (!user) { S.user = null; S.boot = false; return render(); }
+  const prof = await q(sb.from('profiles').select('*').eq('id', user.id).maybeSingle());
+  if (!prof || prof.status !== 'active') {
+    await sb.auth.signOut();
+    S.user = null; S.boot = false; render();
+    return toast(prof && prof.status === 'pending' ? 'حسابك بانتظار موافقة المدير' : 'هذا الحساب موقوف. راجع المدير', 'err');
+  }
+  S.user = prof;
+  await loadHome();
+  const pid = localStorage.getItem(PID_KEY);
+  S.boot = false;
+  if (pid && S.projects.some(p => p.id === pid)) await enterProject(pid);
+  else { S.view = 'home'; render(); }
+}
+
+async function logout() {
+  unsubscribe();
+  localStorage.removeItem(PID_KEY);
+  resetAI();
+  closeModal();
+  S.user = null; S.p = null; S.view = 'home';
+  render();
+  try { await sb.auth.signOut(); } catch (e) { /* تجاهل */ }
+}
+
+async function loadHome() {
+  const [projects, office] = await Promise.all([
+    q(sb.from('projects').select('id,name,type,client,location,color,progress').order('created_at')),
+    q(sb.from('office').select('*').eq('id', 1).maybeSingle())
+  ]);
+  S.projects = projects || [];
+  S.office = office || { name: '', ai_enabled: false };
+  S.users = isAdmin() ? await q(sb.from('profiles').select('*').order('created_at')) : [];
+}
+
+/* ================= تحميل المشروع وحفظه ================= */
+function normProject(p) {
+  p.models = p.models || []; p.buildings = p.buildings || []; p.testCats = p.testCats || [];
+  p.visits = p.visits || []; p.log = p.log || []; p.nextNo = p.nextNo || 1;
+  p.testCats.forEach(c => { c.records = c.records || []; });
+  p.models.forEach(m => { m.stages = m.stages || []; m.houses = m.houses || []; m.houses.forEach(h => { h.prog = h.prog || {}; }); });
+  p.buildings.forEach(b => { b.stages = b.stages || []; });
+}
+const recFromRow = r => ({
+  id: r.id, catId: r.cat_id, unitId: r.unit_id || '', unit: r.unit, date: r.test_date || '', sample: r.sample || '', lab: r.lab || '',
+  result: r.result || '', status: r.status, notes: r.notes || '', files: r.files || [], by: r.by_name || '', createdBy: r.created_by, t: Date.parse(r.created_at)
+});
+const recToRow = (rec, pid) => ({
+  id: rec.id, project_id: pid, cat_id: rec.catId, unit_id: rec.unitId || '', unit: rec.unit, test_date: rec.date || null,
+  sample: rec.sample || '', lab: rec.lab || '', result: rec.result || '', status: rec.status, notes: rec.notes || '', files: rec.files || [], by_name: rec.by || ''
+});
+const visitFromRow = v => ({ id: v.id, date: v.visit_date || '', notes: v.notes, open: v.open, by: v.by_name || '', createdBy: v.created_by, t: Date.parse(v.created_at) });
+const logFromRow = e => ({ t: Date.parse(e.t), by: e.by_name, role: e.role, kind: e.kind, unitId: e.unit_id, label: e.label, stage: e.stage, from: e.from_pct, to: e.to_pct, text: e.text });
+
+async function loadProject(id) {
+  const [row, recs, vis, logs] = await Promise.all([
+    q(sb.from('projects').select('*').eq('id', id).maybeSingle()),
+    fetchAll(() => sb.from('test_records').select('*').eq('project_id', id).order('created_at')),
+    fetchAll(() => sb.from('visits').select('*').eq('project_id', id).order('created_at', { ascending: false })),
+    fetchAll(() => sb.from('logs').select('*').eq('project_id', id).order('t', { ascending: false }), 4000)
+  ]);
+  if (!row) return null;
+  const p = Object.assign({}, row.data || {}, { id: row.id, name: row.name, type: row.type, client: row.client, location: row.location, color: row.color, version: row.version });
+  normProject(p);
+  const byCat = {};
+  p.testCats.forEach(c => { c.records = []; byCat[c.id] = c; });
+  recs.forEach(r => { const c = byCat[r.cat_id]; if (c) c.records.push(recFromRow(r)); });
+  p.visits = vis.map(visitFromRow);
+  p.log = logs.map(logFromRow).reverse();
+  return p;
+}
+
+async function reloadProject(quiet) {
+  if (!S.p) return;
+  try {
+    const p = await loadProject(S.p.id);
+    if (!p) { toast('تم حذف هذا المشروع', 'err'); return exitProject(); }
+    S.p = p;
+    S.stale = false;
+    if (!quiet || $('#modal').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+  } catch (e) { toast(errMsg(e), 'err'); }
+}
+
+/* حفظ بنية المشروع (النماذج والمنازل والفقرات والأصناف) مع منع الكتابة فوق تعديلات غيرك */
+async function saveDoc() {
+  const p = S.p;
+  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo };
+  S.lastWrite = Date.now();
+  setSync(true);
+  const { data: rows, error } = await sb.from('projects')
+    .update({ name: p.name, type: p.type, client: p.client, location: p.location, color: p.color, data, progress: projectPct(p), version: p.version + 1, updated_at: new Date().toISOString(), updated_by: S.user.id })
+    .eq('id', p.id).eq('version', p.version).select('version');
+  setSync(false);
+  if (error || !rows || !rows.length) {
+    S.pendingLogs = [];
+    await reloadProject();
+    toast(error ? errMsg(error) : 'عدّل مستخدم آخر هذا المشروع قبل لحظات. تم تحميل آخر نسخة، أعد التعديل', 'err');
+    return false;
+  }
+  p.version = rows[0].version;
+  await flushLogs();
+  return true;
+}
+
+/* ================= التحديث اللحظي ================= */
+function subscribe(pid) {
+  unsubscribe();
+  const onChange = () => {
+    if (Date.now() - S.lastWrite < 2500) return;
+    clearTimeout(S.rtTimer);
+    S.rtTimer = setTimeout(() => {
+      if (!S.p || S.p.id !== pid) return;
+      if (!$('#modal').hidden || S.busy) { S.stale = true; return; }
+      reloadProject(true);
+    }, 800);
+  };
+  S.channel = sb.channel('project-' + pid)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: `id=eq.${pid}` }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'test_records', filter: `project_id=eq.${pid}` }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: `project_id=eq.${pid}` }, onChange)
+    .subscribe();
+}
+function unsubscribe() {
+  if (S.channel) { try { sb.removeChannel(S.channel); } catch (e) { /* تجاهل */ } }
+  S.channel = null;
+}
+
+async function enterProject(id) {
+  S.boot = true; render();
+  try {
+    const p = await loadProject(id);
+    S.boot = false;
+    if (!p) { localStorage.removeItem(PID_KEY); toast('المشروع غير موجود', 'err'); S.view = 'home'; return render(); }
+    S.p = p;
+    S.view = 'dash';
+    S.filter = { q: '', st: 'all', model: 'all' };
+    S.tf = { cat: 'all', q: '', st: 'all' };
+    localStorage.setItem(PID_KEY, id);
+    resetAI();
+    closeModal();
+    subscribe(id);
+    render();
+    window.scrollTo(0, 0);
+  } catch (e) {
+    S.boot = false; S.view = 'home'; render(); toast(errMsg(e), 'err');
+  }
+}
+
+async function exitProject() {
+  unsubscribe();
+  S.p = null;
+  S.view = 'home';
+  localStorage.removeItem(PID_KEY);
+  resetAI();
+  closeModal();
+  try { await loadHome(); } catch (e) { toast(errMsg(e), 'err'); }
+  render();
+  window.scrollTo(0, 0);
+}
+
+/* ================= الوحدات والإنجاز ================= */
+const curP = () => S.p;
+const getM = (p, mid) => p && p.models.find(m => m.id === mid);
+
+function units(p) {
+  const out = [];
+  if (p.type === 'complex') {
+    p.models.forEach(m => m.houses.forEach(h => out.push({
+      id: h.id, no: h.no, label: 'منزل ' + h.no, color: m.color, group: m.name, model: m, house: h, w: wt(h),
+      stages: m.stages.map(s => ({ id: s.id, name: s.name, test: s.test, w: wt(s), pct: pct(h.prog[s.id]) }))
+    })));
+    out.sort((a, b) => a.no - b.no);
+  }
+  p.buildings.forEach(b => out.push({
+    id: b.id, no: null, label: b.name, color: b.color, group: b.kind === 'infra' ? 'بنية تحتية' : '', building: b, w: wt(b),
+    stages: b.stages.map(s => ({ id: s.id, name: s.name, test: s.test, w: wt(s), pct: pct(s.pct) }))
+  }));
+  return out;
+}
+const unitPct = u => wavg(u.stages, s => s.pct, wt);
+const projectPct = p => wavg(units(p), unitPct, wt);
+const housePct = (m, h) => wavg(m.stages, s => pct(h.prog[s.id]), wt);
+const modelPct = m => wavg(m.houses, h => housePct(m, h), wt);
+const unitById = (p, id) => units(p).find(u => u.id === id);
+const nosRange = m => { if (!m.houses.length) return '-'; const n = m.houses.map(h => h.no); return Math.min(...n) + ' – ' + Math.max(...n); };
+function stageNames(p) {
+  const names = [];
+  p.models.forEach(m => m.stages.forEach(s => { if (!names.includes(s.name)) names.push(s.name); }));
+  return names;
+}
+
+function matchUnit(p, txt) {
+  const t = toLatin(String(txt || '').trim());
+  if (!t) return null;
+  const us = units(p);
+  const u = us.find(x => x.label === t || x.label === t.replace(/^(بيت|دار|منزل)\s*/, 'منزل '));
+  if (u) return u;
+  if (p.type === 'complex') {
+    const m = t.match(/\d+/);
+    return m ? (us.find(x => x.no === +m[0]) || null) : null;
+  }
+  return us.find(x => norm(x.label) === norm(t)) || null;
+}
+
+const catName = (p, id) => { const c = p.testCats.find(x => x.id === id); return c ? c.name : ''; };
+const hasTest = (p, unitId, catId) => { const c = p.testCats.find(x => x.id === catId); return !!c && c.records.some(r => r.unitId === unitId); };
+const resolveCat = (p, key) => key ? ((p.testCats.find(c => c.name.includes(key)) || {}).id || '') : '';
+const makeStages = (p, withPct) => DEFAULT_STAGES.map(([n, k]) => Object.assign({ id: uid(), name: n, test: resolveCat(p, k) }, withPct ? { pct: 0 } : {}));
+const toLabel = l => l.startsWith('منزل') ? 'لل' + l : 'لـ' + l;
+const doneText = (s, label) => s.name.startsWith('صب') ? `تم ${s.name} ${toLabel(label)}` : `اكتمل "${s.name}" في ${label}`;
+const missingTest = (p, u, s) => !!(s.test && s.pct >= 100 && catName(p, s.test) && !hasTest(p, u.id, s.test));
+const missingText = (p, u, s) => `${doneText(s, u.label)} ولم تتم إضافة أي فحوصات مختبرية (${catName(p, s.test)}) حتى الآن`;
+
+function issuesFor(p, onlyIds) {
+  const out = [];
+  const set = onlyIds ? new Set(onlyIds) : null;
+  units(p).forEach(u => {
+    if (set && !set.has(u.id)) return;
+    u.stages.forEach(s => { if (missingTest(p, u, s)) out.push({ unitId: u.id, unit: u.label, stage: s.name, catId: s.test, text: missingText(p, u, s) }); });
+  });
+  return out;
+}
+
+function setStagePct(p, u, stageId, val) {
+  val = pct(val);
+  if (u.house) {
+    const old = pct(u.house.prog[stageId]);
+    if (old === val) return false;
+    if (val) u.house.prog[stageId] = val; else delete u.house.prog[stageId];
+    const s = u.model.stages.find(x => x.id === stageId);
+    logP(p, { kind: 'prog', unitId: u.id, label: u.label, stage: s ? s.name : '', from: old, to: val });
+    return true;
+  }
+  const s = u.building.stages.find(x => x.id === stageId);
+  if (!s) return false;
+  const old = pct(s.pct);
+  if (old === val) return false;
+  s.pct = val;
+  logP(p, { kind: 'prog', unitId: u.id, label: u.label, stage: s.name, from: old, to: val });
+  return true;
+}
+
+/* ================= عناصر الواجهة ================= */
+const bar = (v, c, lbl) => `<div class="bar"><i style="width:${pct(v)}%;background:${c || 'var(--brand)'}"></i></div><div class="barlbl"><span>${lbl || 'الإنجاز'}</span><b>${pct(v)}%</b></div>`;
+const roleBadge = r => `<span class="role ${r}">${ROLES[r] || r}</span>`;
+const catOptions = (p, sel, none) => (none === false ? '' : `<option value="">— لا يتطلب فحصاً —</option>`) + p.testCats.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+const mrow = (n = '', c = '', a = '') => `<div class="mrow"><input name="mname" value="${esc(n)}" placeholder="اسم النموذج"><input name="mcount" type="number" min="0" value="${esc(c)}" placeholder="العدد"><input name="marea" type="number" min="0" value="${esc(a)}" placeholder="المساحة م²"><button type="button" class="x" data-act="del-row">✕</button></div>`;
+
+function openModal(title, html) {
+  $('#mbody').innerHTML = `<div class="mh"><b>${esc(title)}</b><button type="button" class="x" data-act="close">✕</button></div>${html}`;
+  $('#modal').hidden = false;
+}
+function closeModal() {
+  $('#modal').hidden = true;
+  $('#mbody').innerHTML = '';
+  if (S.stale && S.p) reloadProject(true);
+}
+
+function updRemain(f) {
+  const box = f && f.querySelector('#remain');
+  if (!box) return;
+  const total = +(f.querySelector('[name=total]').value) || 0;
+  if (!total) { box.innerHTML = ''; return; }
+  const used = [...f.querySelectorAll('[name=mcount]')].reduce((a, i) => a + (+i.value || 0), 0);
+  const rem = total - used;
+  box.innerHTML = rem >= 0
+    ? `المدخل ${used} من ${total} — المتبقي <b>${rem}</b>${rem > 0 ? ' (سيُضاف تلقائياً كنموذج "باقي الوحدات")' : ''}`
+    : `<span style="color:var(--bad)">المدخل ${used} أكبر من الإجمالي بمقدار ${-rem}</span>`;
+}
+
+/* ================= شاشات عامة ================= */
+function viewConfig() {
+  return `<div class="authwrap"><div class="card authbox" style="text-align:center">
+    <h3 style="margin-bottom:8px">النظام غير مربوط بقاعدة البيانات</h3>
+    <p class="muted">${window.supabase ? 'ضع رابط مشروع Supabase والمفتاح العام في أعلى الملف (CONFIG).' : 'تعذر تحميل مكتبة Supabase. تحقق من اتصال الإنترنت.'}</p></div></div>`;
+}
+const viewLoading = () => `<div class="center"><div><div class="spin"></div><div class="muted">جارٍ التحميل…</div></div></div>`;
+
+function viewAuth() {
+  const reg = S.authMode === 'register';
+  const roles = Object.keys(ROLES).map((r, i) => `<label class="rolecard"><input type="radio" name="role" value="${r}" ${i === 1 ? 'checked' : ''}>
+      <div><b style="color:${ROLE_COLOR[r]}">${ROLES[r]}</b><div class="small muted">${ROLE_DESC[r]}</div></div></label>`).join('');
+  return `<div class="authwrap"><div class="card authbox">
+      <div class="tabs">
+        <button type="button" class="tab ${!reg ? 'on' : ''}" data-act="authmode" data-m="login">تسجيل الدخول</button>
+        <button type="button" class="tab ${reg ? 'on' : ''}" data-act="authmode" data-m="register">إنشاء حساب</button>
+      </div>
+      <form data-form="${reg ? 'register' : 'login'}" class="stack">
+        ${reg ? `<label>الاسم الكامل<input name="name" required></label>` : ''}
+        <label>اسم المستخدم<input name="username" required autocomplete="username" dir="ltr" ${reg ? 'pattern="[A-Za-z0-9._\\-]{3,30}" title="3 إلى 30 حرفاً إنكليزياً أو أرقاماً"' : ''}></label>
+        <label>كلمة المرور<input name="password" type="password" required minlength="${reg ? 6 : 1}" autocomplete="${reg ? 'new-password' : 'current-password'}"></label>
+        ${reg ? `<div><div style="margin-bottom:6px;font-size:14px;color:#334155">حدد هويتك</div><div class="rolepick">${roles}</div></div>
+          <label>اسم الشركة / الجهة <span class="muted small">(اختياري)</span><input name="company"></label>
+          <p class="small muted" style="margin:0">لا يُفعَّل الحساب حتى يوافق عليه المدير.</p>` : ''}
+        <button class="primary">${reg ? 'إرسال طلب التسجيل' : 'دخول'}</button>
+      </form>
+  </div></div>`;
+}
+
+/* ================= الواجهة الخارجية ================= */
+function outerLayout(body) {
+  const pend = S.users.filter(u => u.status === 'pending').length;
+  const b = (v, l, extra = '') => `<button type="button" class="ghost sm ${S.view === v ? 'on' : ''}" data-act="go" data-view="${v}">${l}${extra}</button>`;
+  return `<header class="ohead">
+      <div class="logo">م</div>
+      <div class="grow"><b>${esc(S.office.name || 'المكتب الاستشاري')}</b><div class="small" style="color:#e0f2fe">${esc(S.user.name)} · ${ROLES[S.user.role]}${isOwner() ? ' (المدير الرئيسي)' : ''}</div></div>
+      ${b('home', 'المشاريع')}
+      ${isAdmin() ? b('users', 'المستخدمون', pend ? `<span class="cnt">${pend}</span>` : '') : ''}
+      ${b('settings', 'الإعدادات')}
+      <button type="button" class="ghost sm" data-act="logout">تسجيل الخروج</button>
+    </header><main>${body}</main>`;
+}
+
+function viewHome() {
+  const pend = S.users.filter(u => u.status === 'pending').length;
+  const cards = S.projects.map(p => `<div class="pick-card" style="--c:${esc(p.color)}" data-act="enter" data-id="${p.id}">
+      <div class="row"><div class="ficon" style="--c:${esc(p.color)}">${icon(p.type === 'complex' ? 'home' : 'bld', '#fff')}</div>
+        <div class="grow"><b style="font-size:16px">${esc(p.name)}</b><div class="small muted">${TYPE_LABEL[p.type]}</div></div></div>
+      <div class="small muted" style="margin-top:10px">${esc(p.client || '—')}${p.location ? ' · ' + esc(p.location) : ''}</div>
+      <div style="margin-top:12px">${bar(p.progress || 0, p.color, 'الإنجاز الكلي')}</div>
+      <div style="margin-top:12px"><span class="badge">دخول إلى المشروع ←</span></div>
+    </div>`).join('');
+  return `<div class="row" style="margin-bottom:16px"><div><h2>اختر المشروع</h2><div class="muted small">تدخل إلى مشروع واحد في كل مرة. للانتقال إلى مشروع آخر اخرج من المشروع الحالي.</div></div><span class="grow"></span>
+      <button type="button" class="ghost" data-act="ai-open">✦ المهندس الذكي</button>
+      ${isAdmin() ? '<button type="button" class="primary" data-act="new-project">+ إضافة مشروع</button>' : ''}</div>
+    ${isAdmin() && pend ? `<div class="banner"><b>${pend} طلب مستخدم جديد بانتظار موافقتك</b><span class="grow"></span><button type="button" class="primary sm" data-act="go" data-view="users">مراجعة الطلبات</button></div>` : ''}
+    ${cards ? `<div class="grid">${cards}</div>` : `<div class="card empty"><p>لا توجد مشاريع بعد.</p>${isAdmin() ? '<button type="button" class="primary" data-act="new-project">إضافة أول مشروع</button>' : '<p class="small">سيظهر هنا ما يضيفه المدير من مشاريع.</p>'}</div>`}`;
+}
+
+function viewUsers() {
+  const pend = S.users.filter(u => u.status === 'pending');
+  const others = S.users.filter(u => u.status !== 'pending');
+  const roleSel = u => `<select style="width:auto" data-chg="role" data-id="${u.id}">${Object.keys(ROLES).map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${ROLES[r]}</option>`).join('')}</select>`;
+  const pendHtml = pend.map(u => `<div class="banner" style="margin-bottom:8px"><div class="grow"><b>${esc(u.name)}</b> ${roleBadge(u.role)}
+      <div class="small muted">اسم المستخدم: ${esc(u.username)}${u.company ? ' · ' + esc(u.company) : ''} · ${dkey(Date.parse(u.created_at))}</div></div>
+      ${roleSel(u)}
+      <button type="button" class="okb sm" data-act="approve" data-id="${u.id}">موافقة</button>
+      <button type="button" class="danger sm" data-act="reject" data-id="${u.id}">رفض</button></div>`).join('');
+  const rows = others.map(u => {
+    const locked = u.id === S.user.id || u.is_owner;
+    return `<tr><td><b>${esc(u.name)}</b>${u.id === S.user.id ? ' <span class="tb">أنت</span>' : ''}${u.is_owner ? ' <span class="badge gold">المدير الرئيسي</span>' : ''}<div class="small muted">${esc(u.company || '')}</div></td><td dir="ltr" style="text-align:right">${esc(u.username)}</td>
+      <td>${locked ? roleBadge(u.role) : roleSel(u)}</td>
+      <td>${u.status === 'active' ? '<span class="badge ok">فعّال</span>' : '<span class="badge bad">موقوف</span>'}</td>
+      <td>${locked ? '' : `<button type="button" class="ghost sm" data-act="toggle-user" data-id="${u.id}">${u.status === 'active' ? 'إيقاف' : 'تفعيل'}</button>
+        <button type="button" class="x" data-act="del-user" data-id="${u.id}">✕</button>`}</td></tr>`;
+  }).join('');
+  return `<div class="card"><h3 style="margin-bottom:10px">طلبات بانتظار الموافقة (${pend.length})</h3>${pendHtml || '<div class="muted">لا توجد طلبات جديدة</div>'}</div>
+    <div class="card"><h3 style="margin-bottom:10px">كل المستخدمين</h3>
+      <div class="tablewrap"><table><thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>الحالة</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="small muted" style="margin-top:10px">${Object.keys(ROLES).map(r => `<div>${roleBadge(r)} ${ROLE_DESC[r]}</div>`).join('')}</div>
+    </div>`;
+}
+
+function viewSettings() {
+  let localN = 0;
+  try { const d = JSON.parse(localStorage.getItem('ofc2_db')); localN = d && Array.isArray(d.projects) ? d.projects.length : 0; } catch (e) { localN = 0; }
+  const st = S.aiStatus;
+  return `<div class="card"><h3 style="margin-bottom:10px">تغيير كلمة المرور</h3>
+      <form data-form="pw" class="stack"><div class="grid2"><label>كلمة المرور الحالية<input name="old" type="password" required autocomplete="current-password"></label>
+        <label>كلمة المرور الجديدة<input name="nw" type="password" required minlength="6" autocomplete="new-password"></label></div><div><button class="primary">تغيير</button></div></form></div>
+    ${isAdmin() ? `<div class="card"><h3 style="margin-bottom:10px">بيانات المكتب</h3>
+      <form data-form="office" class="stack"><label>اسم المكتب<input name="name" value="${esc(S.office.name)}"></label><div><button class="primary">حفظ</button></div></form></div>` : ''}
+    ${isOwner() ? `<div class="card" style="border:2px solid var(--gold)"><h3 style="margin-bottom:6px">✦ المهندس الذكي (Gemini) <span class="badge gold">للمدير الرئيسي فقط</span></h3>
+      <p class="muted small" style="margin-top:0">المفتاح يُحفظ في الخادم فقط، ولا يُرسَل إلى أي متصفح ولا يظهر لأي مستخدم آخر، حتى المدراء. بعد الحفظ لا يمكن قراءته، ويمكنك فقط استبداله أو حذفه. احصل عليه من aistudio.google.com</p>
+      <form data-form="ai" class="stack">
+        <div class="row">${st ? (st.enabled ? '<span class="badge ok">المفتاح مضبوط ومفعّل</span>' : '<span class="badge">لا يوجد مفتاح — يعمل المحرك المدمج</span>') : '<span class="badge">جارٍ التحقق…</span>'}</div>
+        <label>مفتاح جديد<input name="key" type="password" placeholder="${st && st.enabled ? 'اتركه فارغاً للإبقاء على المفتاح الحالي' : 'AIza...'}" autocomplete="off" dir="ltr"></label>
+        <label>النموذج<input name="model" value="${esc(st ? st.model : AI_DEFAULT_MODEL)}" dir="ltr"></label>
+        <div class="row"><button class="primary">حفظ</button>${st && st.enabled ? '<button type="button" class="danger" data-act="ai-key-clear">حذف المفتاح</button>' : ''}</div>
+      </form></div>` : ''}
+    ${isAdmin() ? `<div class="card"><h3 style="margin-bottom:6px">النسخ الاحتياطي</h3>
+      <p class="muted small" style="margin-top:0">البيانات محفوظة على الخادم ومتزامنة بين كل الأجهزة. يمكنك تنزيل نسخة كاملة للاحتفاظ بها.</p>
+      <div class="row"><button type="button" class="ghost" data-act="export">تنزيل نسخة احتياطية</button>
+      ${isOwner() && localN ? `<button type="button" class="ghost" data-act="migrate-local">رفع بيانات النسخة المحلية القديمة (${localN} مشروع)</button>` : ''}</div></div>` : ''}`;
+}
+
+/* ================= داخل المشروع ================= */
+const SECTIONS = p => [
+  ['dash', 'لوحة المشروع', 'home'],
+  ['site', p.type === 'complex' ? 'سايت المجمع' : 'سايت المشروع', 'grid'],
+  ['tests', 'الفحوصات', 'flask'],
+  ['visits', 'الزيارات والملاحظات', 'note'],
+  ['log', 'سجل المشروع', 'act']
+];
+
+function projectLayout(p, title, body) {
+  const nav = SECTIONS(p).map(([k, l, ic]) => `<button type="button" class="${S.view === k ? 'on' : ''}" data-act="section" data-view="${k}">${icon(ic)}<span>${l}</span></button>`).join('');
+  return `<div class="shell"><aside class="side">
+      <div class="brand"><div class="logo">م</div><div><b>${esc(S.office.name || 'المكتب الاستشاري')}</b><div class="small" style="color:#e0f2fe">نظام الإدارة</div></div></div>
+      <div class="projbox"><div class="row" style="gap:8px"><span class="dot" style="background:${esc(p.color)};box-shadow:0 0 0 2px #fff"></span><b>${esc(p.name)}</b></div><div class="small" style="color:#e0f2fe">${TYPE_LABEL[p.type]}</div></div>
+      <nav class="nav">${nav}</nav>
+      <div class="me">
+        <div class="row" style="gap:10px"><div class="av" style="background:${ROLE_COLOR[S.user.role]}">${esc(S.user.name.trim().charAt(0))}</div>
+          <div class="grow"><b>${esc(S.user.name)}</b><div>${roleBadge(S.user.role)}</div></div></div>
+        <button type="button" class="exitbtn" data-act="exit">${icon('out')} خروج من المشروع</button>
+      </div>
+    </aside><div class="backdrop" data-act="menu"></div>
+    <div class="mainwrap">
+      <div class="topbar">
+        <button type="button" class="ghost menu sm" data-act="menu">☰</button>
+        <h2 class="grow">${esc(title)}</h2>
+        <span class="sync"><i></i> محفوظ</span>
+        <button type="button" class="primary sm" data-act="ai-open">✦ المهندس الذكي</button>
+        <button type="button" class="ghost sm" data-act="exit">خروج</button>
+      </div>
+      <main>${body}</main></div></div>`;
+}
+
+function viewPDash(p) {
+  const us = units(p);
+  const tests = p.testCats.flatMap(c => c.records);
+  const today = p.log.filter(e => dkey(e.t) === dkey(Date.now())).length;
+  const parts = p.type === 'complex'
+    ? p.models.map(m => `<div class="lg" style="--c:${m.color}"><span class="sw"></span><div class="grow"><b>${esc(m.name)}</b>${bar(modelPct(m), m.color, m.houses.length + ' منزل')}</div></div>`).join('')
+      + units(p).filter(u => u.building).map(u => `<div class="lg" style="--c:${u.color}"><span class="sw"></span><div class="grow"><b>${esc(u.label)}</b>${bar(unitPct(u), u.color)}</div></div>`).join('')
+    : us.map(u => `<div class="lg" style="--c:${u.color}"><span class="sw"></span><div class="grow"><b>${esc(u.label)}</b>${bar(unitPct(u), u.color)}</div></div>`).join('');
+  return `<div class="phead" style="--c:${esc(p.color)}">
+      <div class="row"><div><h2>${esc(p.name)}</h2><div class="small" style="opacity:.9">${TYPE_LABEL[p.type]}${p.client ? ' · ' + esc(p.client) : ''}${p.location ? ' · ' + esc(p.location) : ''}</div></div>
+        <span class="grow"></span>
+        ${isAdmin() ? `<button type="button" class="ghost sm" data-act="edit-project">تعديل</button><button type="button" class="danger sm" data-act="del-project">حذف المشروع</button>` : ''}
+      </div>
+      <div style="margin-top:12px">${bar(projectPct(p), '#fff', 'نسبة الإنجاز الكلية')}</div>
+    </div>
+    <div class="tiles">
+      <div class="tile t1">${p.type === 'complex' ? 'المنازل والمباني' : 'البنايات'}<b>${us.length}</b></div>
+      <div class="tile t2">مكتملة<b>${us.filter(u => unitPct(u) >= 100).length}</b></div>
+      <div class="tile t3">قيد التنفيذ<b>${us.filter(u => unitPct(u) > 0 && unitPct(u) < 100).length}</b></div>
+      <div class="tile t6">الفحوصات المسجلة<b>${tests.length}</b></div>
+      <div class="tile t4">فحوصات راسبة<b>${tests.filter(r => r.status === 'fail').length}</b></div>
+      <div class="tile t5">تحديثات اليوم<b>${today}</b></div>
+    </div>
+    <div class="card"><h3 style="margin-bottom:10px">${p.type === 'complex' ? 'الإنجاز حسب النموذج' : 'الإنجاز حسب البناية'}</h3><div class="legend">${parts || '<div class="muted">لا يوجد</div>'}</div></div>
+    <div class="card"><div class="row" style="margin-bottom:6px"><h3>آخر النشاطات</h3><span class="grow"></span><button type="button" class="ghost sm" data-act="section" data-view="log">السجل الكامل</button></div>
+      ${logList(p.log.slice(-12).reverse())}</div>`;
+}
+
+const viewSite = p => (p.type === 'complex' ? siteComplex(p) : siteBuildings(p));
+
+function siteComplex(p) {
+  const f = S.filter;
+  const us = units(p).filter(u => u.house);
+  const extras = units(p).filter(u => u.building);
+  const issueIds = new Set(issuesFor(p).map(a => a.unitId));
+  const area = p.models.reduce((a, m) => a + m.houses.length * (+m.area || 0), 0);
+  const qq = toLatin(f.q).trim();
+  const tiles = us.filter(u => {
+    const v = unitPct(u);
+    if (f.model !== 'all' && u.model.id !== f.model) return false;
+    if (qq && !String(u.no).includes(qq)) return false;
+    if (f.st === 'none') return v === 0;
+    if (f.st === 'prog') return v > 0 && v < 100;
+    if (f.st === 'done') return v >= 100;
+    if (f.st === 'missing') return issueIds.has(u.id);
+    return true;
+  }).map(u => {
+    const v = unitPct(u);
+    return `<button type="button" class="h ${issueIds.has(u.id) ? 'al' : ''}" style="--c:${u.color};--p:${v}%" data-act="house" data-id="${u.id}" title="منزل ${u.no} — ${esc(u.group)} — ${v}%"><span>${u.no}</span><small>${v}%</small></button>`;
+  }).join('');
+  const legend = p.models.map(m => `<div class="lg" style="--c:${m.color}"><span class="sw"></span>
+      <div class="grow"><b>${esc(m.name)}</b><div class="small muted">${m.houses.length} منزل · ${m.area || '-'} م² · ${modelPct(m)}%</div></div>
+      ${isAdmin() ? `<button type="button" class="ghost sm" data-act="edit-model" data-m="${m.id}">تعديل</button>` : ''}</div>`).join('');
+  const stageSum = stageNames(p).map(name => {
+    const hits = us.map(u => ({ s: u.stages.find(s => s.name === name), w: u.w })).filter(x => x.s);
+    const sw = p.models.flatMap(m => m.stages).find(s => s.name === name);
+    return `<div><div class="small"><b>${esc(name)}</b> <span class="muted">· ثقل ${wt(sw)}</span></div>${bar(wavg(hits, x => x.s.pct, x => x.w), 'var(--brand)', hits.filter(x => x.s.pct >= 100).length + ' منزل مكتمل')}</div>`;
+  }).join('');
+  return `<div class="tiles">
+      <div class="tile t1">إجمالي المنازل<b>${us.length}</b></div>
+      <div class="tile t5">عدد النماذج<b>${p.models.length}</b></div>
+      <div class="tile t6">إجمالي المساحات م²<b>${area.toLocaleString('en')}</b></div>
+      <div class="tile t3">قيد التنفيذ<b>${us.filter(u => unitPct(u) > 0 && unitPct(u) < 100).length}</b></div>
+      <div class="tile t2">مكتملة<b>${us.filter(u => unitPct(u) >= 100).length}</b></div>
+    </div>
+    <div class="card"><div class="row" style="margin-bottom:10px"><h3>النماذج وألوانها</h3><span class="grow"></span>
+      ${isAdmin() ? '<button type="button" class="ghost sm" data-act="add-model">+ إضافة نموذج</button>' : ''}</div>
+      <div class="legend">${legend || '<div class="muted">لا توجد نماذج</div>'}</div></div>
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <h3>المنازل</h3><span class="grow"></span>
+        ${can('stages') ? '<button type="button" class="ghost sm" data-act="stages">الفقرات والأوزان</button>' : ''}
+        ${can('progress') ? '<button type="button" class="ghost sm" data-act="bulk">تحديث جماعي</button>' : ''}
+      </div>
+      <div class="row" style="margin-bottom:12px">
+        <input style="max-width:170px" placeholder="بحث برقم المنزل" value="${esc(f.q)}" data-filter="q">
+        <select style="max-width:190px" data-filter="model"><option value="all">كل النماذج</option>${p.models.map(m => `<option value="${m.id}" ${f.model === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select>
+        <select style="max-width:190px" data-filter="st">
+          ${[['all', 'كل الحالات'], ['none', 'لم تبدأ'], ['prog', 'قيد التنفيذ'], ['done', 'مكتملة'], ['missing', 'فحوصات ناقصة']].map(([k, l]) => `<option value="${k}" ${f.st === k ? 'selected' : ''}>${l}</option>`).join('')}
+        </select><span class="grow"></span>
+        <div class="hint"><span>اللون حسب النموذج، ويمتلئ حسب نسبة الإنجاز</span><span><span class="dot" style="background:var(--bad)"></span> فقرة مكتملة بدون فحص</span></div>
+      </div>
+      <div class="hgrid">${tiles || '<div class="empty" style="grid-column:1/-1">لا توجد منازل مطابقة</div>'}</div>
+    </div>
+    <div class="card"><div class="row" style="margin-bottom:10px"><h3>المباني والبنى التحتية الإضافية</h3><span class="grow"></span>
+      ${isAdmin() ? '<button type="button" class="ghost sm" data-act="add-bld">+ إضافة مبنى / بنية تحتية</button>' : ''}</div>
+      ${extras.length ? `<div class="grid">${extras.map(u => `<div class="ent" style="--c:${u.color}" data-act="open-bld" data-id="${u.id}"><div class="row"><b class="grow">${esc(u.label)}</b><span class="badge">${esc(u.group)}</span></div><div style="margin-top:8px">${bar(unitPct(u), u.color)}</div><div class="small muted">الوزن: ${u.w} · ${u.stages.length} فقرة</div></div>`).join('')}</div>` : '<div class="muted small">لا توجد مبانٍ أو بنى تحتية مضافة. تُحسب نسبتها ضمن الإنجاز الكلي عند إضافتها.</div>'}</div>
+    <div class="card"><h3 style="margin-bottom:10px">الإنجاز حسب الفقرة (كل المنازل)</h3><div class="sumst">${stageSum || '<span class="muted">لا توجد فقرات</span>'}</div></div>`;
+}
+
+function siteBuildings(p) {
+  const us = units(p);
+  const cards = us.map(u => {
+    const miss = issuesFor(p, [u.id]).length;
+    return `<div class="ent" style="--c:${u.color}" data-act="open-bld" data-id="${u.id}">
+      <div class="row"><div class="ficon" style="width:34px;height:34px">${icon('bld', '#fff')}</div><b class="grow">${esc(u.label)}</b>${miss ? `<span class="badge warn">${miss} فحص ناقص</span>` : ''}</div>
+      <div style="margin-top:8px">${bar(unitPct(u), u.color)}</div>
+      <div class="small muted">${u.stages.length} فقرة · ${u.stages.filter(s => s.pct >= 100).length} مكتملة</div></div>`;
+  }).join('');
+  return `<div class="tiles">
+      <div class="tile t1">عدد البنايات<b>${us.length}</b></div>
+      <div class="tile t5">إجمالي الفقرات<b>${us.reduce((a, u) => a + u.stages.length, 0)}</b></div>
+      <div class="tile t3">قيد التنفيذ<b>${us.filter(u => unitPct(u) > 0 && unitPct(u) < 100).length}</b></div>
+      <div class="tile t2">مكتملة<b>${us.filter(u => unitPct(u) >= 100).length}</b></div>
+    </div>
+    <div class="card"><div class="row" style="margin-bottom:12px"><h3>البنايات</h3><span class="grow"></span>
+      ${isAdmin() ? '<button type="button" class="ghost" data-act="add-bld">+ إضافة مبنى / بنية تحتية</button>' : ''}</div>
+      <div class="grid">${cards || '<div class="empty">لا توجد بنايات</div>'}</div></div>`;
+}
+
+/* ================= صفحة الفحوصات ================= */
+function viewTests(p) {
+  const f = S.tf;
+  const all = p.testCats.flatMap(c => c.records.map(r => ({ r, c })));
+  const miss = issuesFor(p);
+  if (f.cat !== 'all' && f.cat !== 'missing' && !p.testCats.some(c => c.id === f.cat)) f.cat = 'all';
+  const cnt = st => all.filter(x => x.r.status === st).length;
+  const chips = `<div class="cats">
+      <button type="button" class="catb ${f.cat === 'all' ? 'on' : ''}" data-act="tcat" data-c="all">كل الفحوصات <b>${all.length}</b></button>
+      ${p.testCats.map(c => `<button type="button" class="catb ${f.cat === c.id ? 'on' : ''}" data-act="tcat" data-c="${c.id}">${esc(c.name)} <b>${c.records.length}</b></button>`).join('')}
+      <button type="button" class="catb miss ${f.cat === 'missing' ? 'on' : ''}" data-act="tcat" data-c="missing">مطلوبة ولم تُسجَّل <b>${miss.length}</b></button>
+    </div>`;
+  const toolbar = f.cat === 'missing' ? '' : `<div class="tbar">
+      <input placeholder="بحث: وحدة، عينة، مختبر، نتيجة" value="${esc(f.q)}" data-tfilter="q">
+      <select data-tfilter="st"><option value="all">كل الحالات</option>${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${f.st === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <span class="grow"></span>
+      ${can('tests') ? `<button type="button" class="primary" data-act="rec-new" data-cat="${f.cat !== 'all' ? f.cat : ''}">+ تسجيل فحص</button>` : ''}
+    </div>`;
+  let body;
+  if (f.cat === 'missing') {
+    body = miss.length ? `<div class="tablewrap"><table class="ttable"><thead><tr><th>الوحدة</th><th>الفقرة المكتملة</th><th>الفحص المطلوب</th><th></th></tr></thead><tbody>
+      ${miss.map(m => `<tr><td><b>${esc(m.unit)}</b></td><td>${esc(m.stage)}</td><td><span class="tb bad">${esc(catName(p, m.catId))}</span></td>
+        <td>${can('tests') ? `<button type="button" class="primary sm" data-act="rec-new" data-cat="${m.catId}" data-unit="${esc(m.unit)}">تسجيل الفحص</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty">كل الفقرات المكتملة التي تتطلب فحوصات لها فحوصات مسجلة.</div>';
+  } else {
+    const qq = norm(f.q).trim();
+    const list = all.filter(({ r, c }) => (f.cat === 'all' || c.id === f.cat) && (f.st === 'all' || r.status === f.st)
+      && (!qq || norm([r.unit, r.sample, r.lab, r.result, r.notes, c.name].join(' ')).includes(qq)))
+      .sort((a, b) => (b.r.date || '').localeCompare(a.r.date || '') || b.r.t - a.r.t);
+    body = list.length ? `<div class="tablewrap"><table class="ttable"><thead><tr>
+        <th>التاريخ</th>${f.cat === 'all' ? '<th>الصنف</th>' : ''}<th>الوحدة / الزون</th><th>رقم العينة</th><th>المختبر</th><th>النتيجة</th><th>الحالة</th><th>المرفقات</th><th>بواسطة</th><th></th>
+      </tr></thead><tbody>
+      ${list.map(({ r, c }) => `<tr>
+        <td>${esc(r.date) || '—'}</td>${f.cat === 'all' ? `<td>${esc(c.name)}</td>` : ''}
+        <td><b>${esc(r.unit)}</b>${r.unitId ? '' : ' <span class="tb">زون</span>'}</td>
+        <td>${esc(r.sample) || '—'}</td><td>${esc(r.lab) || '—'}</td><td class="wrap">${esc(r.result) || '—'}</td>
+        <td>${can('tests') ? `<select class="stsel st-${r.status}" data-chg="rec" data-c="${c.id}" data-id="${r.id}">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+          : `<span class="stsel st-${r.status}">${STATUS[r.status]}</span>`}</td>
+        <td>${r.files.length ? `<button type="button" class="fcount" data-act="rec-open" data-c="${c.id}" data-id="${r.id}">📎 ${r.files.length}</button>` : '<span class="muted">—</span>'}</td>
+        <td class="small muted">${esc(r.by)}</td>
+        <td style="white-space:nowrap"><button type="button" class="ghost sm" data-act="rec-open" data-c="${c.id}" data-id="${r.id}">${can('tests') ? 'تعديل' : 'عرض'}</button>
+          ${can('tests') ? `<button type="button" class="x" data-act="rec-del" data-c="${c.id}" data-id="${r.id}">✕</button>` : ''}</td>
+      </tr>`).join('')}</tbody></table></div>` : '<div class="empty">لا توجد فحوصات مطابقة</div>';
+  }
+  return `<div class="tiles">
+      <div class="tile t1">كل الفحوصات<b>${all.length}</b></div>
+      <div class="tile t2">ناجحة<b>${cnt('pass')}</b></div>
+      <div class="tile t4">راسبة<b>${cnt('fail')}</b></div>
+      <div class="tile t3">قيد الفحص<b>${cnt('pending')}</b></div>
+      <div class="tile t5">مطلوبة ولم تُسجَّل<b>${miss.length}</b></div>
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:10px"><h3>سجل الفحوصات</h3><span class="grow"></span>
+        ${can('tests') ? '<button type="button" class="ghost sm" data-act="cats">إدارة الأصناف</button>' : ''}</div>
+      ${chips}${toolbar}${body}
+    </div>`;
+}
+
+function recForm(p, rec, preset) {
+  const ed = can('tests');
+  const r = rec || { catId: (preset && preset.cat) || (p.testCats[0] || {}).id, unit: (preset && preset.unit) || '', date: dkey(Date.now()), sample: '', lab: '', result: '', status: 'pending', notes: '', files: [] };
+  const dis = ed ? '' : 'disabled';
+  const files = (r.files || []).map(f => `<div class="file"><span class="fi">${esc(fext(f.name).toUpperCase().slice(0, 4))}</span>
+      <div class="grow"><button type="button" class="lnk" data-act="file-open" data-path="${esc(f.path)}">${esc(f.name)}</button><div class="small muted">${fsize(f.size || 0)}</div></div>
+      ${ed ? `<label class="chk small"><input type="checkbox" name="rmfile" value="${esc(f.path)}"> حذف</label>` : ''}</div>`).join('');
+  return `<form data-form="rec" data-id="${rec ? rec.id : ''}" data-oldcat="${rec ? rec.catId : ''}" class="stack">
+    <div class="grid2">
+      <label>صنف الفحص<select name="cat" ${dis} required>${catOptions(p, r.catId, false)}</select></label>
+      <label>الوحدة / الزون<input name="unit" list="ents-list" value="${esc(r.unit)}" placeholder="${p.type === 'complex' ? 'رقم المنزل أو اسم الزون' : 'البناية أو الزون'}" ${dis} required></label>
+    </div>
+    <div class="grid3">
+      <label>تاريخ الفحص<input name="date" type="date" value="${esc(r.date)}" ${dis}></label>
+      <label>رقم العينة<input name="sample" value="${esc(r.sample)}" ${dis}></label>
+      <label>المختبر / الجهة الفاحصة<input name="lab" value="${esc(r.lab)}" ${dis}></label>
+    </div>
+    <div class="grid2">
+      <label>النتيجة<input name="result" value="${esc(r.result)}" placeholder="مثال: 28 MPa" ${dis}></label>
+      <label>الحالة<select name="status" ${dis}>${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    </div>
+    <label>ملاحظات<textarea name="notes" rows="2" ${dis}>${esc(r.notes)}</textarea></label>
+    <div><b>ملفات الفحص</b> <span class="muted small">(تقارير المختبر، صور، PDF — حتى 20MB للملف)</span></div>
+    <div class="files">${files || '<div class="muted small">لا توجد ملفات مرفقة</div>'}</div>
+    ${ed ? '<input type="file" name="files" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip">' : ''}
+    <datalist id="ents-list">${units(p).map(u => `<option value="${esc(u.label)}">`).join('')}</datalist>
+    ${rec ? `<div class="small muted">سجّله ${esc(rec.by || '—')} في ${dkey(rec.t)} ${hhmm(rec.t)}</div>` : ''}
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إغلاق</button>${ed ? '<button class="primary">حفظ</button>' : ''}</div>
+  </form>`;
+}
+
+function catsForm(p) {
+  return `<div class="stack">
+    <div>${p.testCats.map(c => `<div class="catrow"><b class="grow">${esc(c.name)}</b><span class="badge">${c.records.length} فحص</span>
+      <button type="button" class="ghost sm" data-act="ren-cat" data-c="${c.id}">تعديل الاسم</button>
+      <button type="button" class="danger sm" data-act="del-cat" data-c="${c.id}">حذف</button></div>`).join('') || '<div class="muted">لا توجد أصناف</div>'}</div>
+    <form data-form="cat" class="row"><input name="name" placeholder="صنف جديد، مثال: فحوصات حديد التسليح" required style="flex:1"><button class="primary">إضافة</button></form>
+  </div>`;
+}
+
+function viewVisits(p) {
+  const items = p.visits.map(v => `<div class="visit ${v.open ? 'open' : ''}">
+      <div class="row"><b>${esc(v.date)}</b><span class="badge ${v.open ? 'warn' : 'ok'}">${v.open ? 'متابعة مفتوحة' : 'مغلقة'}</span>
+        <span class="small muted">${esc(v.by || '')}</span><span class="grow"></span>
+        ${can('visits') ? `<button type="button" class="ghost sm" data-act="toggle-visit" data-id="${v.id}">${v.open ? 'إغلاق' : 'إعادة فتح'}</button>` : ''}
+        ${isAdmin() || v.createdBy === S.user.id ? `<button type="button" class="x" data-act="del-visit" data-id="${v.id}">✕</button>` : ''}</div>
+      <div>${esc(v.notes)}</div></div>`).join('');
+  return `${can('visits') ? `<div class="card"><h3 style="margin-bottom:10px">زيارة / ملاحظة جديدة</h3>
+      <form data-form="visit" class="stack">
+        <div class="grid2"><input name="date" type="date" value="${dkey(Date.now())}" required>
+          <label class="chk"><input type="checkbox" name="open" checked> متابعة مفتوحة</label></div>
+        <textarea name="notes" rows="2" placeholder="وصف الزيارة أو الملاحظة" required></textarea>
+        <div><button class="primary">إضافة</button></div>
+      </form></div>` : ''}
+    <div class="card">${items || '<div class="empty">لا توجد زيارات مسجلة</div>'}</div>`;
+}
+
+function logList(entries) {
+  if (!entries.length) return '<div class="empty">لا يوجد نشاط مسجل</div>';
+  let h = '', day = '';
+  entries.forEach(e => {
+    const k = dkey(e.t);
+    if (k !== day) { day = k; h += `<div class="lday">${k === dkey(Date.now()) ? 'اليوم' : k === dkey(Date.now() - DAY) ? 'أمس' : k}</div>`; }
+    h += `<div class="lrow"><time>${hhmm(e.t)}</time><div class="grow">${esc(logText(e))}</div><span class="small muted">${esc(e.by || '')}</span></div>`;
+  });
+  return h;
+}
+
+/* ================= الرسم ================= */
+function render() {
+  const app = $('#app');
+  document.body.classList.remove('sideopen');
+  if (!configured) { app.innerHTML = viewConfig(); return; }
+  if (S.boot) { app.innerHTML = viewLoading(); return; }
+  if (!S.user) { app.innerHTML = viewAuth(); return; }
+  const p = S.p;
+  if (!p) {
+    if (S.view === 'users' && !isAdmin()) S.view = 'home';
+    if (!['home', 'users', 'settings'].includes(S.view)) S.view = 'home';
+    app.innerHTML = outerLayout(S.view === 'users' ? viewUsers() : S.view === 'settings' ? viewSettings() : viewHome());
+    return;
+  }
+  const sec = SECTIONS(p).find(x => x[0] === S.view) || SECTIONS(p)[0];
+  S.view = sec[0];
+  const views = { dash: viewPDash, site: viewSite, tests: viewTests, visits: viewVisits, log: x => `<div class="card">${logList(x.log.slice(-300).reverse())}</div>` };
+  app.innerHTML = projectLayout(p, sec[1], views[S.view](p));
+}
+
+/* ================= نماذج الإدخال ================= */
+function typePicker() {
+  const opt = (t, c, ic, d) => `<button type="button" class="pick" data-act="pick-type" data-type="${t}"><div class="ficon" style="--c:${c}">${icon(ic, '#fff')}</div><div><b>${TYPE_LABEL[t]}</b><div class="muted small">${d}</div></div></button>`;
+  return `<div class="stack">
+    ${opt('complex', '#0284c7', 'home', 'عدة نماذج منازل بمساحات مختلفة، كل نموذج بلون، ومتابعة كل منزل')}
+    ${opt('gov', '#16a34a', 'bld', 'عدد البنايات، ولكل بناية فقراتها ونسبة إنجازها')}
+    ${opt('invest', '#ea580c', 'bld', 'عدد البنايات، ولكل بناية فقراتها ونسبة إنجازها')}</div>`;
+}
+
+function projectForm(type) {
+  const isC = type === 'complex';
+  return `<form data-form="project" class="stack">
+    <input type="hidden" name="type" value="${type}">
+    <label>اسم المشروع<input name="name" required></label>
+    <div class="grid2"><label>الجهة / المالك<input name="client"></label><label>الموقع<input name="location"></label></div>
+    ${isC ? `
+      <label>إجمالي عدد الوحدات السكنية<input name="total" type="number" min="1" placeholder="مثال: 792"></label>
+      <div class="row"><b>النماذج</b><span class="grow"></span><button type="button" class="ghost sm" data-act="fill-example">تعبئة مثال (مجمع العدل)</button></div>
+      <div id="models">${mrow()}</div>
+      <div><button type="button" class="ghost sm" data-act="add-mrow">+ إضافة نموذج</button></div>
+      <div id="remain" class="muted small"></div>
+      <p class="muted small" style="margin:0">تُرقَّم المنازل تلقائياً بالتسلسل، ويأخذ كل نموذج لوناً مختلفاً، وتُضاف فقرات الإنجاز الافتراضية (يمكن تعديلها لاحقاً).</p>`
+    : `<label>عدد البنايات<input name="count" type="number" min="1" required></label>
+      <p class="muted small" style="margin:0">تُنشأ البنايات بفقرات افتراضية، ويمكن تسميتها وتعديل فقراتها لاحقاً.</p>`}
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ المشروع</button></div>
+  </form>`;
+}
+
+function editProjectForm(p) {
+  return `<form data-form="editproj" class="stack">
+    <label>اسم المشروع<input name="name" value="${esc(p.name)}" required></label>
+    <div class="grid2"><label>الجهة / المالك<input name="client" value="${esc(p.client)}"></label><label>الموقع<input name="location" value="${esc(p.location)}"></label></div>
+    <label>لون المشروع<input type="color" name="color" value="${esc(p.color)}"></label>
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ</button></div>
+  </form>`;
+}
+
+function modelForm(p, m) {
+  return `<form data-form="model" data-m="${m ? m.id : ''}" class="stack">
+    <label>اسم النموذج<input name="name" value="${esc(m ? m.name : '')}" required></label>
+    <div class="grid2"><label>عدد المنازل<input name="count" type="number" min="0" value="${m ? m.houses.length : ''}" required></label>
+      <label>المساحة م²<input name="area" type="number" min="0" value="${m ? m.area : ''}"></label></div>
+    <label>لون النموذج<input type="color" name="color" value="${m ? m.color : PALETTE[p.models.length % PALETTE.length]}"></label>
+    <label>وزن كل منزل في هذا النموذج (يُطبَّق على كل منازله)<input name="hw" type="number" min="0" step="0.5" value="${m && m.houses.length ? (m.houses.every(h => wt(h) === wt(m.houses[0])) ? wt(m.houses[0]) : '') : 1}" placeholder="مختلف بين المنازل"></label>
+    ${m ? '<p class="muted small" style="margin:0">زيادة العدد تضيف منازل بأرقام جديدة، وإنقاصه يحذف المنازل ذات الأرقام الأكبر في هذا النموذج.</p>' : ''}
+    <div class="foot">${m ? `<button type="button" class="danger" data-act="del-model" data-m="${m.id}">حذف النموذج</button>` : ''}<span class="grow"></span>
+      <button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ</button></div>
+  </form>`;
+}
+
+function stageRow(p, s, withPct) {
+  const st = can('stages'), pr = can('progress');
+  return `<div class="srow ${withPct ? '' : 'nopct'}" data-sid="${s.id || ''}">
+    <input data-k="name" value="${esc(s.name)}" placeholder="اسم الفقرة" ${st ? '' : 'disabled'}>
+    <select data-k="test" ${st ? '' : 'disabled'}>${catOptions(p, s.test)}</select>
+    <input data-k="w" type="number" min="0" step="0.5" title="وزن الفقرة في الإنجاز" value="${wt(s)}" ${st ? '' : 'disabled'}>
+    ${withPct ? `<div class="rng"><input type="range" data-k="pct" min="0" max="100" step="5" value="${pct(s.pct)}" ${pr ? '' : 'disabled'}><output>${pct(s.pct)}%</output></div>` : ''}
+    ${st ? `<div class="ctl"><button type="button" data-act="up" title="أعلى">▲</button><button type="button" data-act="down" title="أسفل">▼</button><button type="button" class="x" data-act="del-srow">✕</button></div>` : '<span></span>'}
+  </div>`;
+}
+
+function stagesForm(p, m) {
+  return `<form data-form="stages" data-m="${m.id}" class="stack">
+    <label>النموذج<select data-chg="stg-model">${p.models.map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.name)} (${x.houses.length} منزل)</option>`).join('')}</select></label>
+    <p class="muted small" style="margin:0">رتّب فقرات الإنجاز، وحدد وزن كل فقرة (أهميتها في نسبة الإنجاز)، والفحص المختبري المطلوب لها. ويمكنك إضافة فقرة جديدة.</p>
+    <div class="slist">${m.stages.map(s => stageRow(p, s, false)).join('')}</div>
+    <div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="0">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق (كهرباء، ماء، مجاري، صحيات)</button></div>
+    ${p.models.length > 1 ? '<label class="chk"><input type="checkbox" name="all"> تطبيق نفس الفقرات على كل النماذج (تبقى النسب للفقرات التي لها نفس الاسم)</label>' : ''}
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ الفقرات</button></div>
+  </form>`;
+}
+
+function houseForm(p, u) {
+  const pr = can('progress');
+  const tests = p.testCats.flatMap(c => c.records.filter(r => r.unitId === u.id).map(r => ({ c, r })));
+  const rows = u.stages.map(s => {
+    let tb = '';
+    if (s.test) {
+      const cn = catName(p, s.test);
+      tb = hasTest(p, u.id, s.test) ? `<span class="tb ok">✓ ${esc(cn)}</span>` : s.pct >= 100 ? `<span class="tb bad">⚠ ${esc(cn)} مطلوبة</span>` : `<span class="tb">${esc(cn)}</span>`;
+    }
+    return `<div class="hst"><div><b>${esc(s.name)}</b> <small class="muted">· ثقل ${wt(s)}</small>${tb}</div>
+      <div class="rng"><input type="range" name="s_${s.id}" min="0" max="100" step="5" value="${s.pct}" ${pr ? '' : 'disabled'}><output>${s.pct}%</output>
+      ${pr ? `<button type="button" class="ghost sm" data-act="full" data-target="s_${s.id}">100%</button>` : ''}</div></div>`;
+  }).join('');
+  return `<form data-form="house" data-id="${u.id}" class="stack">
+    <div class="row"><span class="dot" style="background:${u.color}"></span><span class="muted small">${esc(u.group)} · ${u.model.area || '-'} م²</span><span class="grow"></span><b>${unitPct(u)}%</b></div>
+    <div>${rows || '<div class="muted">لا توجد فقرات. أضفها من "ترتيب الفقرات".</div>'}</div>
+    ${can('stages') ? `<label>وزن المنزل في الإنجاز الكلي<input name="w" type="number" min="0" step="0.5" value="${wt(u.house)}"></label>` : ''}
+    <label>ملاحظات المنزل<textarea name="note" rows="2" ${pr ? '' : 'disabled'}>${esc(u.house.note || '')}</textarea></label>
+    <h4 style="margin:0">الفحوصات المختبرية (${tests.length})</h4>
+    ${tests.length ? `<div class="tablewrap"><table><tbody>${tests.map(t => `<tr><td>${esc(t.c.name)}</td><td>${esc(t.r.date)}</td><td>${esc(t.r.result)}</td><td><span class="stsel st-${t.r.status}">${STATUS[t.r.status]}</span></td>
+      <td><button type="button" class="fcount" data-act="rec-open" data-c="${t.c.id}" data-id="${t.r.id}">${t.r.files.length ? '📎 ' + t.r.files.length : 'عرض'}</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="muted small">لم تُسجل أي فحوصات لهذا المنزل بعد.</div>'}
+    <div class="foot"><button type="button" class="ghost sm" data-act="ai-q" data-q="منزل ${u.no}">✦ اسأل المهندس الذكي</button>
+      ${can('tests') ? `<button type="button" class="ghost sm" data-act="rec-new" data-unit="${esc(u.label)}">+ تسجيل فحص</button>` : ''}<span class="grow"></span>
+      <button type="button" class="ghost" data-act="close">إغلاق</button>${pr ? '<button class="primary">حفظ</button>' : ''}</div>
+  </form>`;
+}
+
+function buildingForm(p, b) {
+  const edit = can('stages') || can('progress');
+  return `<form data-form="bld" data-id="${b ? b.id : ''}" class="stack">
+    <div class="grid2"><label>الاسم<input name="name" value="${esc(b ? b.name : 'بناية ' + (p.buildings.length + 1))}" ${isAdmin() ? '' : 'disabled'} required></label>
+      <label>النوع<select name="kind" ${isAdmin() ? '' : 'disabled'}><option value="building" ${!b || b.kind !== 'infra' ? 'selected' : ''}>مبنى</option><option value="infra" ${b && b.kind === 'infra' ? 'selected' : ''}>بنية تحتية</option></select></label></div>
+    <div class="grid2"><label>وزنه في الإنجاز الكلي<input name="w" type="number" min="0" step="0.5" value="${b ? wt(b) : 1}" ${isAdmin() ? '' : 'disabled'}></label>
+      <label>اللون<input type="color" name="color" value="${b ? b.color : PALETTE[p.buildings.length % PALETTE.length]}" ${isAdmin() ? '' : 'disabled'}></label></div>
+    <h4 style="margin:0">الفقرات ونسب الإنجاز</h4>
+    <div class="slist">${(b ? b.stages : makeStages(p, true)).map(s => stageRow(p, s, true)).join('')}</div>
+    ${can('stages') ? '<div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="1">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق (كهرباء، ماء، مجاري، صحيات)</button></div>' : ''}
+    <label>ملاحظات<textarea name="note" rows="2" ${edit ? '' : 'disabled'}>${esc(b ? b.note || '' : '')}</textarea></label>
+    <div class="foot">${b && isAdmin() ? `<button type="button" class="danger" data-act="del-bld" data-id="${b.id}">حذف البناية</button>` : ''}
+      ${b ? `<button type="button" class="ghost sm" data-act="ai-q" data-q="${esc(b.name)}">✦ اسأل المهندس الذكي</button>` : ''}
+      ${b && can('tests') ? `<button type="button" class="ghost sm" data-act="rec-new" data-unit="${esc(b.name)}">+ تسجيل فحص</button>` : ''}<span class="grow"></span>
+      <button type="button" class="ghost" data-act="close">إغلاق</button>${edit || !b ? '<button class="primary">حفظ</button>' : ''}</div>
+  </form>`;
+}
+
+function bulkForm(p) {
+  const nos = units(p).map(u => u.no);
+  return `<form data-form="bulk" class="stack">
+    <p class="muted small" style="margin:0">حدّث نسبة فقرة لمجموعة منازل متتالية دفعة واحدة.</p>
+    <div class="grid2"><label>الفقرة<select name="stage">${stageNames(p).map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
+      <label>النموذج<select name="model"><option value="all">كل النماذج</option>${p.models.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label></div>
+    <div class="grid2"><label>من منزل رقم<input name="from" type="number" value="${nos.length ? Math.min(...nos) : ''}" required></label>
+      <label>إلى منزل رقم<input name="to" type="number" value="${nos.length ? Math.max(...nos) : ''}" required></label></div>
+    <label>النسبة<div class="rng"><input type="range" name="val" min="0" max="100" step="5" value="100"><output>100%</output></div></label>
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">تطبيق</button></div>
+  </form>`;
+}
+
+/* ================= المهندس الذكي ================= */
+function findBuilding(p, t) {
+  if (p.type === 'complex') return null;
+  const list = units(p).map(u => ({ u, n: norm(u.label) })).sort((a, b) => b.n.length - a.n.length);
+  const hit = list.find(x => { const i = t.indexOf(x.n); return i >= 0 && !/\d/.test(t.charAt(i + x.n.length)); });
+  return hit ? hit.u : null;
+}
+const findModel = (p, t) => p.models.slice().sort((a, b) => b.name.length - a.name.length).find(m => t.includes(norm(m.name))) || null;
+
+function unitDetail(p, u) {
+  const out = [`**${u.label}**${u.group ? ' — ' + u.group : ''}`, `نسبة الإنجاز: **${unitPct(u)}%**`];
+  if (u.model && u.model.area) out.push(`المساحة: ${u.model.area} م²`);
+  out.push('الفقرات:');
+  u.stages.forEach(s => out.push(`- ${s.name}: ${s.pct}%${s.pct >= 100 ? ' ✔' : ''}${s.test ? (hasTest(p, u.id, s.test) ? ' — ' + catName(p, s.test) + ': مسجّلة' : s.pct >= 100 ? ' — ⚠ لم تُسجَّل ' + catName(p, s.test) : '') : ''}`));
+  const tests = p.testCats.flatMap(c => c.records.filter(r => r.unitId === u.id).map(r => `- ${c.name}: ${STATUS[r.status]}${r.result ? ' (' + r.result + ')' : ''} — ${r.date}${r.files.length ? ' — ' + r.files.length + ' ملف' : ''}`));
+  out.push(tests.length ? 'الفحوصات المختبرية:' : 'لم تُسجَّل أي فحوصات مختبرية لهذه الوحدة حتى الآن.');
+  tests.forEach(x => out.push(x));
+  const note = u.house ? u.house.note : u.building.note;
+  if (note) out.push('ملاحظة: ' + note);
+  const last = p.log.filter(e => e.unitId === u.id && e.kind === 'prog').slice(-5).reverse();
+  if (last.length) { out.push('آخر التحديثات:'); last.forEach(e => out.push(`- ${dkey(e.t)} ${hhmm(e.t)}: ${e.stage} من ${e.from}% إلى ${e.to}% (${e.by})`)); }
+  return out.join('\n');
+}
+
+function rangeReport(p, from, to, title) {
+  const inR = ts => { const k = dkey(ts || 0); return k >= from && k <= to; };
+  const out = [`**تقرير ${title} — ${p.name}** (${from === to ? from : from + ' إلى ' + to})`, `الإنجاز الكلي الآن: ${projectPct(p)}%`];
+  const L = p.log.filter(e => inR(e.t));
+  const tests = p.testCats.flatMap(c => c.records.filter(r => inR(r.t)).map(r => Object.assign({ cat: c.name }, r)));
+  const vis = p.visits.filter(v => inR(v.t));
+  if (!L.length && !tests.length && !vis.length) { out.push('', 'لا توجد أي تحديثات مسجلة في هذه الفترة.'); return out.join('\n'); }
+  const prog = L.filter(e => e.kind === 'prog');
+  const done = prog.filter(e => e.to >= 100 && e.from < 100);
+  if (done.length) {
+    out.push('', `فقرات اكتملت (${done.length}):`);
+    done.slice(0, 30).forEach(e => out.push(`- ${e.label}: ${e.stage} ✔ (${e.by})`));
+    if (done.length > 30) out.push(`- و${done.length - 30} فقرة أخرى`);
+  }
+  const other = prog.filter(e => !(e.to >= 100 && e.from < 100));
+  if (other.length) {
+    out.push('', `تحديثات نسب الإنجاز (${other.length}):`);
+    other.slice(-15).reverse().forEach(e => out.push(`- ${e.label}: ${e.stage} من ${e.from}% إلى ${e.to}% (${e.by})`));
+    if (other.length > 15) out.push(`- و${other.length - 15} تحديث آخر`);
+  }
+  if (tests.length) {
+    out.push('', `فحوصات مختبرية مضافة (${tests.length}):`);
+    tests.forEach(r => out.push(`- ${r.cat} — ${r.unit}: ${STATUS[r.status]}${r.result ? ' (' + r.result + ')' : ''}${r.by ? ' — ' + r.by : ''}`));
+  }
+  const misc = L.filter(e => e.kind !== 'prog' && e.kind !== 'test');
+  if (misc.length) { out.push('', 'أحداث أخرى:'); misc.slice(-10).forEach(e => out.push(`- ${logText(e)} (${e.by})`)); }
+  if (vis.length) { out.push('', 'زيارات وملاحظات:'); vis.forEach(v => out.push(`- ${v.notes}${v.open ? ' [متابعة مفتوحة]' : ''} (${v.by || ''})`)); }
+  const miss = issuesFor(p, [...new Set(done.map(e => e.unitId))]);
+  if (miss.length) { out.push('', 'فقرات اكتملت بدون فحوصات مختبرية:'); miss.slice(0, 20).forEach(a => out.push('- ' + a.text)); if (miss.length > 20) out.push(`- و${miss.length - 20} أخرى`); }
+  return out.join('\n');
+}
+
+function missingReport(p) {
+  const all = issuesFor(p);
+  if (!all.length) return 'كل الفقرات المكتملة التي تتطلب فحوصات لها فحوصات مسجلة.';
+  return [`**فقرات مكتملة بدون فحوصات مختبرية (${all.length})**`].concat(all.slice(0, 60).map(a => '- ' + a.text), all.length > 60 ? [`- و${all.length - 60} أخرى`] : []).join('\n');
+}
+function failedReport(p) {
+  const out = ['**الفحوصات الراسبة**'];
+  p.testCats.forEach(c => c.records.filter(r => r.status === 'fail').forEach(r => out.push(`- ${c.name} — ${r.unit}: ${r.result || 'بدون نتيجة مسجلة'} (${r.date})${r.notes ? ' — ' + r.notes : ''}`)));
+  return out.length > 1 ? out.join('\n') : 'لا توجد فحوصات راسبة في هذا المشروع.';
+}
+function pendingReport(p) {
+  const rs = [];
+  p.testCats.forEach(c => c.records.filter(r => r.status === 'pending').forEach(r => rs.push(`- ${c.name} — ${r.unit} (${r.date || '—'}${r.date ? '، منذ ' + daysSince(r.date) + ' يوم' : ''})`)));
+  return rs.length ? [`**فحوصات قيد الفحص (${rs.length})**`].concat(rs).join('\n') : 'لا توجد فحوصات قيد الفحص.';
+}
+function progressReport(p) {
+  const out = [`**نسبة إنجاز ${p.name}: ${projectPct(p)}%**`];
+  const us = units(p);
+  if (p.type === 'complex') p.models.forEach(m => out.push(`- ${m.name} (${m.houses.length} منزل): ${modelPct(m)}%`));
+  else us.forEach(u => out.push(`- ${u.label}: ${unitPct(u)}%`));
+  out.push(`مكتمل ${us.filter(u => unitPct(u) >= 100).length} · قيد التنفيذ ${us.filter(u => unitPct(u) > 0 && unitPct(u) < 100).length} · لم يبدأ ${us.filter(u => unitPct(u) === 0).length}`);
+  return out.join('\n');
+}
+function modelReport(p, m) {
+  const us = units(p).filter(u => u.model === m);
+  const out = [`**${m.name}** — ${m.houses.length} منزل (أرقام ${nosRange(m)})، مساحة ${m.area || '-'} م²`, `الإنجاز: **${modelPct(m)}%**`, 'الفقرات:'];
+  m.stages.forEach(s => { const v = us.map(u => pct(u.house.prog[s.id])); out.push(`- ${s.name}: ${avg(v)}% (${v.filter(x => x >= 100).length} منزل مكتمل)`); });
+  return out.join('\n');
+}
+function testsReport(p) {
+  const out = [`**ملخص الفحوصات — ${p.name}**`];
+  p.testCats.forEach(c => out.push(`- ${c.name}: ${c.records.length} فحص (ناجح ${c.records.filter(r => r.status === 'pass').length}، راسب ${c.records.filter(r => r.status === 'fail').length}، قيد الفحص ${c.records.filter(r => r.status === 'pending').length})`));
+  return out.join('\n');
+}
+const projectReport = p => [progressReport(p), '', testsReport(p), '', `زيارات متابعة مفتوحة: ${p.visits.filter(v => v.open).length}`].join('\n');
+
+function helpText(p) {
+  return [`اسألني عن مشروع **${p.name}**، مثلاً:`,
+    '- شنو الجديد اليوم؟ / تقرير أمس / تقرير الأسبوع',
+    p.type === 'complex' ? '- منزل 45' : '- اسم البناية (مثلاً: بناية 1)',
+    p.type === 'complex' ? '- اسم نموذج' : '',
+    '- نسبة الإنجاز / الفحوصات / الفحوصات الراسبة / الفحوصات الناقصة / قيد الفحص'].filter(Boolean).join('\n');
+}
+
+function aiLocal(qs, p) {
+  const t = norm(qs);
+  if (p.type === 'complex') {
+    const m = t.match(/(?:منزل|بيت|دار|وحده|رقم)\s*(\d+)/) || t.match(/^\s*(\d+)\s*$/);
+    if (m) { const u = units(p).find(x => x.no === +m[1]); return u ? unitDetail(p, u) : `لا يوجد منزل برقم ${m[1]} في هذا المشروع.`; }
+  }
+  const b = findBuilding(p, t);
+  if (b) return unitDetail(p, b);
+  if (/راسب|فشل|فاشل|مرفوض/.test(t)) return failedReport(p);
+  if (/ناقص|نواقص|بدون فحص|ماكو فحص|لم يتم|تنبيه|مشاكل/.test(t)) return missingReport(p);
+  if (/قيد الفحص|معلق|متاخر|انتظار/.test(t)) return pendingReport(p);
+  if (/امس|البارحه/.test(t)) { const k = dkey(Date.now() - DAY); return rangeReport(p, k, k, 'أمس'); }
+  if (/اسبوع/.test(t)) return rangeReport(p, dkey(Date.now() - 6 * DAY), dkey(Date.now()), 'آخر 7 أيام');
+  if (/جديد|اليوم|صار|حصل/.test(t)) { const k = dkey(Date.now()); return rangeReport(p, k, k, 'اليوم'); }
+  const m = findModel(p, t);
+  if (m) return modelReport(p, m);
+  if (/نسبه|انجاز|تقدم/.test(t)) return progressReport(p);
+  if (/فحص|فحوصات|مختبر/.test(t)) return testsReport(p);
+  if (/مشروع|ملخص|وضع|تقرير/.test(t)) return projectReport(p);
+  return 'لم أفهم السؤال.\n\n' + helpText(p);
+}
+
+function aiContext(p) {
+  const L = [`التاريخ اليوم: ${dkey(Date.now())}`, `المستخدم: ${S.user.name} (${ROLES[S.user.role]})`,
+    `## المشروع: ${p.name} | النوع: ${TYPE_LABEL[p.type]} | الجهة: ${p.client || '-'} | الموقع: ${p.location || '-'} | الإنجاز الكلي: ${projectPct(p)}%`];
+  if (p.type === 'complex') {
+    p.models.forEach(m => {
+      L.push(`نموذج "${m.name}" | مساحة ${m.area || '-'} م² | ${m.houses.length} منزل (أرقام ${nosRange(m)}) | إنجاز ${modelPct(m)}% | الفقرات بالترتيب: ${m.stages.map(s => s.name + (s.test ? ' [تتطلب ' + catName(p, s.test) + ']' : '')).join('، ')}`);
+      let idle = 0;
+      m.houses.forEach(h => {
+        const parts = m.stages.filter(s => pct(h.prog[s.id]) > 0).map(s => `${s.name} ${pct(h.prog[s.id])}%`);
+        if (parts.length || h.note) L.push(`- منزل ${h.no}: ${parts.join('، ') || 'لم يبدأ'}${h.note ? ' | ملاحظة: ' + h.note : ''}`);
+        else idle++;
+      });
+      if (idle) L.push(`- (${idle} منزل من هذا النموذج لم يبدأ العمل فيها)`);
+    });
+  } else {
+    p.buildings.forEach(b => L.push(`- ${b.name}: ${b.stages.map(s => `${s.name} ${pct(s.pct)}%${s.test ? ' [تتطلب ' + catName(p, s.test) + ']' : ''}`).join('، ')}${b.note ? ' | ملاحظة: ' + b.note : ''}`));
+  }
+  p.testCats.forEach(c => {
+    L.push(`${c.name}: ${c.records.length} فحص`);
+    c.records.slice(-200).forEach(r => L.push(`- ${r.date} | ${r.unit} | عينة ${r.sample || '-'} | مختبر ${r.lab || '-'} | نتيجة ${r.result || '-'} | ${STATUS[r.status]} | ${r.notes || ''} | ملفات ${r.files.length} | أضافه ${r.by || '-'} في ${dkey(r.t || 0)}`));
+  });
+  const miss = issuesFor(p);
+  L.push(`فقرات مكتملة بدون الفحص المطلوب (${miss.length}):`);
+  miss.slice(0, 150).forEach(a => L.push('- ' + a.text));
+  if (p.visits.length) { L.push('الزيارات والملاحظات:'); p.visits.slice(0, 40).forEach(v => L.push(`- ${v.date} ${v.open ? '(متابعة مفتوحة)' : '(مغلقة)'} ${v.by || ''}: ${v.notes}`)); }
+  const lg = p.log.slice(-250);
+  if (lg.length) { L.push('سجل النشاط الأخير:'); lg.forEach(e => L.push(`- ${dkey(e.t)} ${hhmm(e.t)} | ${e.by}: ${logText(e)}`)); }
+  let s = L.join('\n');
+  if (s.length > 200000) s = s.slice(0, 200000) + '\n…(تم اختصار البيانات)';
+  return s;
+}
+
+async function aiAsk(qs) {
+  qs = String(qs || '').trim();
+  const p = S.p;
+  if (!qs || S.aiBusy) return;
+  openAI(true);
+  const history = S.chat.map(m => ({ role: m.role === 'user' ? 'user' : 'model', text: m.raw }));
+  S.chat.push({ role: 'user', raw: qs });
+  S.aiBusy = true;
+  renderChat();
+  let ans;
+  if (S.office.ai_enabled) {
+    try {
+      const body = p ? { question: qs, history, context: aiContext(p) } : { question: qs, history, context: await aiContextAll(), scope: 'all' };
+      ans = (await api('ai', body)).text;
+    } catch (e) {
+      ans = (p ? aiLocal(qs, p) : aiLocalAll()) + `\n\n(تعذّر الاتصال بـ Gemini [${errMsg(e)}]، والرد أعلاه من المحرك المدمج.)`;
+    }
+  } else {
+    ans = p ? aiLocal(qs, p) : aiLocalAll();
+  }
+  S.aiBusy = false;
+  if (S.p !== p) return;
+  S.chat.push({ role: 'ai', raw: ans });
+  renderChat();
+}
+
+/* ملخص كل المشاريع للمهندس الذكي (يُستخدم من لوحة المشاريع قبل الدخول لأي مشروع) */
+async function aiContextAll() {
+  const L = [`التاريخ اليوم: ${dkey(Date.now())}`, `المستخدم: ${S.user.name} (${ROLES[S.user.role]})`, `عدد المشاريع: ${S.projects.length}`];
+  for (const row of S.projects) {
+    const p = await loadProject(row.id);
+    if (!p) continue;
+    const us = units(p);
+    const tests = p.testCats.flatMap(c => c.records);
+    const fails = tests.filter(r => r.status === 'fail').length;
+    const open = p.visits.filter(v => v.open).length;
+    L.push(`\n## المشروع: ${p.name} | النوع: ${TYPE_LABEL[p.type]} | الجهة: ${p.client || '-'} | الموقع: ${p.location || '-'} | الإنجاز الكلي: ${projectPct(p)}%`);
+    if (p.type === 'complex') {
+      p.models.forEach(m => L.push(`- نموذج "${m.name}": ${m.houses.length} منزل | إنجاز ${modelPct(m)}%`));
+    } else {
+      us.filter(u => u.building && u.building.kind !== 'infra').forEach(u => L.push(`- ${u.label}: ${unitPct(u)}%`));
+    }
+    const extras = us.filter(u => u.building && (u.building.kind === 'infra' || p.type === 'complex'));
+    if (extras.length) L.push(`- بنى تحتية ومباني إضافية: ${extras.map(u => `${u.label} ${unitPct(u)}%`).join('، ')}`);
+    L.push(`- الفحوصات: ${tests.length} (راسبة ${fails}) | فحوصات ناقصة لفقرات مكتملة: ${issuesFor(p).length} | زيارات مفتوحة: ${open}`);
+  }
+  return L.join('\n');
+}
+
+/* رد من المحرك المدمج عندما لا يكون المشروع مفتوحاً */
+function aiLocalAll() {
+  if (!S.projects.length) return 'لا توجد مشاريع مسجلة بعد.';
+  const sorted = S.projects.slice().sort((a, b) => (a.progress || 0) - (b.progress || 0));
+  return ['**ملخص إنجاز المشاريع**', ...sorted.map(x => `- ${x.name} (${TYPE_LABEL[x.type]}): ${x.progress || 0}%`), '', 'للتحليل التفصيلي (الفحوصات والفقرات الناقصة) فعّل مفتاح Gemini من الإعدادات.'].join('\n');
+}
+
+function md(s) {
+  const fmt = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  let h = '', inList = false;
+  String(s).split('\n').forEach(ln => {
+    if (/^\s*[-•*]\s+/.test(ln)) {
+      if (!inList) { h += '<ul>'; inList = true; }
+      h += '<li>' + fmt(ln.replace(/^\s*[-•*]\s+/, '')) + '</li>';
+      return;
+    }
+    if (inList) { h += '</ul>'; inList = false; }
+    if (/^\s*#+\s/.test(ln)) h += '<p><b>' + fmt(ln.replace(/^\s*#+\s*/, '')) + '</b></p>';
+    else if (ln.trim()) h += '<p>' + fmt(ln) + '</p>';
+  });
+  if (inList) h += '</ul>';
+  return h;
+}
+
+function renderChat() {
+  const p = S.p;
+  const box = $('#aimsgs');
+  const intro = p && !S.chat.length ? `<div class="msg bot">${md(helpText(p))}</div>` : '';
+  box.innerHTML = intro + S.chat.map(m => m.role === 'user' ? `<div class="msg user">${esc(m.raw)}</div>` : `<div class="msg bot">${md(m.raw)}</div>`).join('')
+    + (S.aiBusy ? '<div class="typing">المهندس الذكي يحلل البيانات…</div>' : '');
+  box.scrollTop = box.scrollHeight;
+  $('#aimode').textContent = (p ? p.name : 'كل المشاريع') + ' · ' + (S.office.ai_enabled ? 'Gemini' : 'المحرك المدمج');
+}
+function openAI(noFocus) {
+  if (!S.user) return;
+  $('#ai').hidden = false;
+  renderChat();
+  if (!noFocus) setTimeout(() => { const i = $('#aiform input'); if (i) i.focus(); }, 50);
+}
+function resetAI() { S.chat = []; S.aiBusy = false; $('#ai').hidden = true; }
+
+/* ================= ملفات الفحوصات ================= */
+async function uploadFiles(pid, recId, fileList) {
+  const out = [];
+  for (const file of fileList) {
+    if (file.size > MAX_FILE) { toast(`الملف "${file.name}" أكبر من 20MB ولم يُرفع`, 'err'); continue; }
+    const path = `${pid}/${recId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${fext(file.name)}`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+    if (error) { toast(`تعذر رفع "${file.name}": ${errMsg(error)}`, 'err'); continue; }
+    out.push({ path, name: file.name, size: file.size, type: file.type || '' });
+  }
+  return out;
+}
+async function removeFiles(paths) {
+  if (!paths.length) return;
+  const { error } = await sb.storage.from(BUCKET).remove(paths);
+  if (error) console.warn('remove files', error);
+}
+function findRec(p, cid, id) {
+  const c = p.testCats.find(x => x.id === cid);
+  return c ? { c, r: c.records.find(x => x.id === id) } : { c: null, r: null };
+}
+
+/* ================= الإجراءات ================= */
+function moveRow(el, dir) {
+  const r = el.closest('.srow');
+  if (!r) return;
+  if (dir < 0 && r.previousElementSibling) r.parentNode.insertBefore(r, r.previousElementSibling);
+  if (dir > 0 && r.nextElementSibling) r.parentNode.insertBefore(r.nextElementSibling, r);
+}
+function readStageRows(form) {
+  return $$('.srow', form).map(r => ({
+    id: r.dataset.sid || '',
+    name: r.querySelector('[data-k=name]').value.trim(),
+    test: r.querySelector('[data-k=test]').value,
+    w: (() => { const el = r.querySelector('[data-k=w]'); const v = el ? parseFloat(el.value) : 1; return isNaN(v) || v < 0 ? 1 : v; })(),
+    pct: r.querySelector('[data-k=pct]') ? pct(r.querySelector('[data-k=pct]').value) : 0
+  }));
+}
+const userById = id => S.users.find(u => u.id === id);
+
+/* تحويل إدخال مثل "45-50, 60" إلى قائمة وحدات (الفاصلة تفصل، والنطاق للمنازل فقط) */
+function expandUnits(p, raw) {
+  const parts = String(raw).split(/[,،;\n]+/).map(s => s.trim()).filter(Boolean);
+  const out = [];
+  for (const part of parts) {
+    const m = toLatin(part).match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m && p.type === 'complex') {
+      let a = +m[1], z = +m[2];
+      if (a > z) [a, z] = [z, a];
+      if (z - a > 1000) return null;
+      for (let i = a; i <= z; i++) out.push(String(i));
+    } else out.push(part);
+  }
+  return [...new Set(out)];
+}
+
+/* حفظ فحص واحد لعدة وحدات: سجل مستقل لكل وحدة، والملفات تُرفع لكل سجل */
+async function saveManyRecs(p, c, fd, list, newFiles) {
+  const found = list.map(t => ({ t, u: matchUnit(p, t) }));
+  const missing = found.filter(x => !x.u).map(x => x.t);
+  if (missing.length) return toast('وحدات غير موجودة: ' + missing.join('، '), 'err');
+  const common = {
+    catId: c.id, date: fd.get('date') || '', sample: (fd.get('sample') || '').trim(), lab: (fd.get('lab') || '').trim(),
+    result: (fd.get('result') || '').trim(), status: fd.get('status') || 'pending', notes: (fd.get('notes') || '').trim()
+  };
+  S.lastWrite = Date.now();
+  setSync(true);
+  let done = 0;
+  try {
+    for (const { u } of found) {
+      const rec = Object.assign({ id: uuid(), files: [], by: S.user.name, createdBy: S.user.id, t: Date.now() }, common, { unitId: u.id, unit: u.label });
+      if (newFiles.length) rec.files = await uploadFiles(p.id, rec.id, newFiles);
+      const row = await q(sb.from('test_records').insert(Object.assign(recToRow(rec, p.id), { created_by: S.user.id })).select('created_at').single());
+      rec.t = Date.parse(row.created_at);
+      c.records.push(rec);
+      done++;
+    }
+  } finally { setSync(false); }
+  logP(p, { kind: 'test', text: `أضاف ${c.name} لـ ${done} وحدة: ${found.map(x => x.u.label).join('، ')}` });
+  await flushLogs();
+  closeModal(); render();
+  toast(`تم حفظ الفحص لـ ${done} وحدة`, 'ok');
+}
+
+const ACT = {
+  close: () => closeModal(),
+  menu: () => document.body.classList.toggle('sideopen'),
+  authmode: d => { S.authMode = d.m; render(); },
+  logout: () => logout(),
+  go: async d => {
+    S.view = d.view; render(); window.scrollTo(0, 0);
+    if (d.view === 'settings' && isOwner()) {
+      try { S.aiStatus = await api('ai-status'); } catch (e) { S.aiStatus = { enabled: S.office.ai_enabled, model: AI_DEFAULT_MODEL }; }
+      if (S.view === 'settings' && !S.p) render();
+    }
+    if (d.view === 'users' && isAdmin()) { S.users = await q(sb.from('profiles').select('*').order('created_at')); if (S.view === 'users') render(); }
+  },
+  enter: d => enterProject(d.id),
+  exit: () => exitProject(),
+  section: d => { S.view = d.view; render(); window.scrollTo(0, 0); },
+
+  'ai-open': () => openAI(),
+  'ai-close': () => { $('#ai').hidden = true; },
+  'ai-clear': () => { S.chat = []; renderChat(); },
+  'ai-q': d => { closeModal(); aiAsk(d.q); },
+  'ai-key-clear': async () => {
+    if (!isOwner() || !confirm('حذف مفتاح Gemini؟ سيعمل المهندس الذكي بالمحرك المدمج.')) return;
+    S.aiStatus = await api('ai-key', { clear: true });
+    S.office.ai_enabled = S.aiStatus.enabled;
+    render(); toast('تم حذف المفتاح', 'ok');
+  },
+
+  'new-project': () => { if (need('admin')) openModal('إضافة مشروع', typePicker()); },
+  'pick-type': d => openModal('مشروع جديد — ' + TYPE_LABEL[d.type], projectForm(d.type)),
+  'fill-example': () => {
+    const f = $('#mbody form');
+    const nm = f.querySelector('[name=name]');
+    if (!nm.value) nm.value = 'مجمع العدل السكني';
+    f.querySelector('[name=total]').value = 792;
+    $('#models').innerHTML = [['نموذج 600م²', 90, 600], ['نموذج 1200م²', 2, 1200], ['نموذج 300م²', 100, 300]].map(r => mrow(r[0], r[1], r[2])).join('');
+    updRemain(f);
+  },
+  'add-mrow': () => $('#models').insertAdjacentHTML('beforeend', mrow()),
+  'del-row': (d, el) => { const f = el.closest('form'); el.closest('.mrow').remove(); updRemain(f); },
+  'edit-project': () => { if (need('admin')) openModal('تعديل المشروع', editProjectForm(S.p)); },
+  'del-project': async () => {
+    if (!need('admin')) return;
+    const p = S.p;
+    if (!p || !confirm(`حذف "${p.name}" وكل بياناته وملفاته نهائياً؟`)) return;
+    if (prompt('للتأكيد اكتب اسم المشروع:') !== p.name) return toast('لم يتم الحذف', 'err');
+    const paths = p.testCats.flatMap(c => c.records.flatMap(r => r.files.map(f => f.path)));
+    await q(sb.from('projects').delete().eq('id', p.id));
+    for (let i = 0; i < paths.length; i += 100) await removeFiles(paths.slice(i, i + 100));
+    toast('تم حذف المشروع', 'ok');
+    await exitProject();
+  },
+
+  'add-model': () => { if (need('admin')) openModal('إضافة نموذج', modelForm(S.p, null)); },
+  'edit-model': d => { if (need('admin')) openModal('تعديل النموذج', modelForm(S.p, getM(S.p, d.m))); },
+  'del-model': async d => {
+    if (!need('admin')) return;
+    const p = S.p, m = getM(p, d.m);
+    if (!m || !confirm(`حذف نموذج "${m.name}" و${m.houses.length} منزل؟`)) return;
+    p.models = p.models.filter(x => x.id !== m.id);
+    logP(p, { kind: 'other', text: `حذف النموذج ${m.name}` });
+    if (S.filter.model === m.id) S.filter.model = 'all';
+    if (await saveDoc()) { closeModal(); render(); }
+  },
+  stages: () => {
+    if (!need('stages')) return;
+    const p = S.p;
+    if (!p.models.length) return toast('لا توجد نماذج', 'err');
+    openModal('ترتيب فقرات الإنجاز', stagesForm(p, getM(p, S.filter.model) || p.models[0]));
+  },
+  bulk: () => {
+    if (!need('progress')) return;
+    if (!stageNames(S.p).length) return toast('لا توجد فقرات', 'err');
+    openModal('تحديث جماعي', bulkForm(S.p));
+  },
+  house: d => { const u = unitById(S.p, d.id); if (u) openModal('منزل ' + u.no, houseForm(S.p, u)); },
+  full: (d, el) => {
+    const i = el.closest('form').querySelector(`[name="${d.target}"]`);
+    if (i) { i.value = 100; i.dispatchEvent(new Event('input', { bubbles: true })); }
+  },
+
+  'add-utils': (d, el) => {
+    const f = el.closest('form');
+    const list = f.querySelector('.slist');
+    const have = new Set([...f.querySelectorAll('[data-k=name]')].map(i => i.value.trim()));
+    const withPct = !!f.querySelector('[data-k=pct]');
+    const missing = UTIL_STAGES.filter(n => !have.has(n));
+    if (!missing.length) return toast('فقرات المرافق موجودة بالفعل');
+    missing.forEach(n => list.insertAdjacentHTML('beforeend', stageRow(S.p, { id: '', name: n, test: '', pct: 0, w: 1 }, withPct)));
+  },
+  'add-bld': () => { if (need('admin')) openModal('إضافة بناية', buildingForm(S.p, null)); },
+  'open-bld': d => { const b = S.p.buildings.find(x => x.id === d.id); if (b) openModal(b.name, buildingForm(S.p, b)); },
+  'del-bld': async d => {
+    if (!need('admin')) return;
+    const p = S.p;
+    const b = p.buildings.find(x => x.id === d.id);
+    if (!b || !confirm(`حذف "${b.name}"؟`)) return;
+    p.buildings = p.buildings.filter(x => x.id !== b.id);
+    logP(p, { kind: 'other', text: `حذف ${b.name}` });
+    if (await saveDoc()) { closeModal(); render(); }
+  },
+  'add-srow': (d, el) => { el.closest('form').querySelector('.slist').insertAdjacentHTML('beforeend', stageRow(S.p, { id: '', name: '', test: '', pct: 0 }, d.pct === '1')); },
+  'del-srow': (d, el) => el.closest('.srow').remove(),
+  up: (d, el) => moveRow(el, -1),
+  down: (d, el) => moveRow(el, 1),
+
+  /* الفحوصات */
+  tcat: d => { S.tf.cat = d.c; render(); },
+  cats: () => { if (need('tests')) openModal('أصناف الفحوصات', catsForm(S.p)); },
+  'ren-cat': async d => {
+    if (!need('tests')) return;
+    const p = S.p;
+    const c = p.testCats.find(x => x.id === d.c);
+    const name = c && (prompt('الاسم الجديد للصنف:', c.name) || '').trim();
+    if (!name || name === c.name) return;
+    logP(p, { kind: 'other', text: `غيّر اسم صنف الفحص ${c.name} إلى ${name}` });
+    c.name = name;
+    if (await saveDoc()) openModal('أصناف الفحوصات', catsForm(S.p));
+  },
+  'del-cat': async d => {
+    if (!need('tests')) return;
+    const p = S.p;
+    const c = p.testCats.find(x => x.id === d.c);
+    if (!c || !confirm(`حذف "${c.name}" وكل فحوصاته (${c.records.length}) وملفاتها؟`)) return;
+    const paths = c.records.flatMap(r => r.files.map(f => f.path));
+    p.testCats = p.testCats.filter(x => x.id !== c.id);
+    p.models.forEach(m => m.stages.forEach(s => { if (s.test === c.id) s.test = ''; }));
+    p.buildings.forEach(b => b.stages.forEach(s => { if (s.test === c.id) s.test = ''; }));
+    logP(p, { kind: 'other', text: `حذف صنف الفحص ${c.name}` });
+    if (!(await saveDoc())) return;
+    S.lastWrite = Date.now();
+    await q(sb.from('test_records').delete().eq('project_id', p.id).eq('cat_id', c.id));
+    await removeFiles(paths);
+    if (S.tf.cat === c.id) S.tf.cat = 'all';
+    openModal('أصناف الفحوصات', catsForm(S.p));
+    render();
+  },
+  'rec-new': d => {
+    if (!need('tests')) return;
+    if (!S.p.testCats.length) return toast('أضف صنف فحص أولاً من "إدارة الأصناف"', 'err');
+    openModal('تسجيل فحص', recForm(S.p, null, { cat: d.cat || (S.tf.cat !== 'all' && S.tf.cat !== 'missing' ? S.tf.cat : ''), unit: d.unit || '' }));
+  },
+  'rec-open': d => {
+    const { r } = findRec(S.p, d.c, d.id);
+    if (r) openModal(`فحص — ${r.unit}`, recForm(S.p, r));
+  },
+  'rec-del': async d => {
+    if (!need('tests')) return;
+    const p = S.p;
+    const { c, r } = findRec(p, d.c, d.id);
+    if (!r || !confirm(`حذف ${c.name} ${toLabel(r.unit)}${r.files.length ? ' مع ' + r.files.length + ' ملف' : ''}؟`)) return;
+    S.lastWrite = Date.now();
+    await q(sb.from('test_records').delete().eq('id', r.id));
+    await removeFiles(r.files.map(f => f.path));
+    c.records = c.records.filter(x => x.id !== r.id);
+    logP(p, { kind: 'other', unitId: r.unitId, text: `حذف ${c.name} ${toLabel(r.unit)}` });
+    await flushLogs();
+    render();
+  },
+  'file-open': async d => {
+    const w = window.open('', '_blank');
+    try {
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(d.path, 600);
+      if (error) throw error;
+      if (w) w.location = data.signedUrl; else window.location.href = data.signedUrl;
+    } catch (e) { if (w) w.close(); toast(errMsg(e), 'err'); }
+  },
+
+  'toggle-visit': async d => {
+    if (!need('visits')) return;
+    const p = S.p;
+    const v = p.visits.find(x => x.id === d.id);
+    if (!v) return;
+    S.lastWrite = Date.now();
+    await q(sb.from('visits').update({ open: !v.open }).eq('id', v.id));
+    v.open = !v.open;
+    logP(p, { kind: 'visit', text: `${v.open ? 'أعاد فتح' : 'أغلق'} متابعة: ${v.notes.slice(0, 60)}` });
+    await flushLogs();
+    render();
+  },
+  'del-visit': async d => {
+    const p = S.p;
+    const v = p.visits.find(x => x.id === d.id);
+    if (!v || !(isAdmin() || v.createdBy === S.user.id) || !confirm('حذف هذه الملاحظة؟')) return;
+    S.lastWrite = Date.now();
+    await q(sb.from('visits').delete().eq('id', v.id));
+    p.visits = p.visits.filter(x => x.id !== v.id);
+    render();
+  },
+
+  /* المستخدمون */
+  approve: async d => {
+    if (!need('admin')) return;
+    const u = userById(d.id);
+    if (!u) return;
+    const sel = $(`select[data-chg=role][data-id="${d.id}"]`);
+    const role = sel ? sel.value : u.role;
+    await q(sb.from('profiles').update({ status: 'active', role }).eq('id', u.id));
+    Object.assign(u, { status: 'active', role });
+    render(); toast(`تم تفعيل حساب ${u.name}`, 'ok');
+  },
+  reject: async d => {
+    if (!need('admin')) return;
+    const u = userById(d.id);
+    if (!u || !confirm(`رفض طلب ${u.name} وحذفه؟`)) return;
+    await api('delete-user', { id: u.id });
+    S.users = S.users.filter(x => x.id !== u.id);
+    render();
+  },
+  'toggle-user': async d => {
+    if (!need('admin')) return;
+    const u = userById(d.id);
+    if (!u || u.id === S.user.id || u.is_owner) return;
+    const status = u.status === 'active' ? 'disabled' : 'active';
+    await q(sb.from('profiles').update({ status }).eq('id', u.id));
+    u.status = status;
+    render();
+  },
+  'del-user': async d => {
+    if (!need('admin')) return;
+    const u = userById(d.id);
+    if (!u || u.id === S.user.id || u.is_owner || !confirm(`حذف حساب ${u.name} نهائياً؟`)) return;
+    await api('delete-user', { id: u.id });
+    S.users = S.users.filter(x => x.id !== u.id);
+    render();
+  },
+
+  export: async () => {
+    if (!need('admin')) return;
+    toast('جارٍ تجهيز النسخة…');
+    const [projects, recs, vis] = await Promise.all([
+      fetchAll(() => sb.from('projects').select('*').order('created_at')),
+      fetchAll(() => sb.from('test_records').select('*').order('created_at')),
+      fetchAll(() => sb.from('visits').select('*').order('created_at'))
+    ]);
+    const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), app: 'consulting-office', office: S.office, projects, test_records: recs, visits: vis }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'office-backup-' + dkey(Date.now()) + '.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+  'migrate-local': async () => {
+    if (!isOwner()) return;
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem('ofc2_db')); } catch (e) { d = null; }
+    if (!d || !Array.isArray(d.projects) || !d.projects.length) return toast('لا توجد بيانات محلية', 'err');
+    if (!confirm(`رفع ${d.projects.length} مشروع من النسخة المحلية القديمة إلى الخادم؟`)) return;
+    let n = 0;
+    for (const lp of d.projects) {
+      normProject(lp);
+      const data = { models: lp.models, buildings: lp.buildings, testCats: lp.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: lp.nextNo };
+      const row = await q(sb.from('projects').insert({ name: lp.name, type: lp.type, client: lp.client || '', location: lp.location || '', color: lp.color || PALETTE[0], data }).select('id').single());
+      const recs = lp.testCats.flatMap(c => c.records.map(r => ({
+        project_id: row.id, cat_id: c.id, unit_id: r.unitId || '', unit: r.unit || '', test_date: r.date || null, sample: r.sample || '', result: r.result || '',
+        status: STATUS[r.status] ? r.status : 'pending', notes: r.notes || '', by_name: r.by || '', created_by: S.user.id
+      })));
+      for (let i = 0; i < recs.length; i += 500) await q(sb.from('test_records').insert(recs.slice(i, i + 500)));
+      const vis = (lp.visits || []).map(v => ({ project_id: row.id, visit_date: v.date || null, notes: v.notes || '-', open: !!v.open, by_name: v.by || '', created_by: S.user.id }));
+      if (vis.length) await q(sb.from('visits').insert(vis));
+      n++;
+    }
+    localStorage.removeItem('ofc2_db');
+    await loadHome();
+    S.view = 'home'; render();
+    toast(`تم رفع ${n} مشروع`, 'ok');
+  }
+};
+
+/* ================= حفظ النماذج ================= */
+const FORMS = {
+  login: fd => doLogin(fd),
+  register: fd => doRegister(fd),
+
+  project: async fd => {
+    if (!need('admin')) return;
+    const type = fd.get('type');
+    const name = (fd.get('name') || '').trim();
+    if (!name) return toast('اكتب اسم المشروع', 'err');
+    const p = { type, models: [], buildings: [], nextNo: 1, testCats: DEFAULT_CATS.map(n => ({ id: uid(), name: n, records: [] })) };
+    if (type === 'complex') {
+      const total = +fd.get('total') || 0;
+      const names = fd.getAll('mname'), counts = fd.getAll('mcount'), areas = fd.getAll('marea');
+      const defs = [];
+      let used = 0;
+      names.forEach((n, i) => {
+        const c = +counts[i] || 0;
+        if (!c && !n.trim()) return;
+        used += c;
+        defs.push([n.trim() || 'نموذج ' + (defs.length + 1), c, +areas[i] || 0]);
+      });
+      if (total && used > total) return toast('مجموع المنازل أكبر من إجمالي المجمع', 'err');
+      if (total && total - used > 0) defs.push(['باقي الوحدات', total - used, 0]);
+      if (!defs.length) return toast('أضف نموذجاً واحداً على الأقل', 'err');
+      if (defs.reduce((a, x) => a + x[1], 0) > 5000) return toast('الحد الأعلى 5000 منزل للمشروع', 'err');
+      defs.forEach(([n, c, a], i) => {
+        const m = { id: uid(), name: n, area: a, color: PALETTE[i % PALETTE.length], stages: makeStages(p, false), houses: [] };
+        for (let k = 0; k < c; k++) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '' });
+        p.models.push(m);
+      });
+    } else {
+      const n = +fd.get('count') || 0;
+      if (n < 1 || n > 500) return toast('أدخل عدد البنايات (1 – 500)', 'err');
+      for (let i = 1; i <= n; i++) p.buildings.push({ id: uid(), name: 'بناية ' + i, color: PALETTE[(i - 1) % PALETTE.length], stages: makeStages(p, true), note: '' });
+    }
+    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo };
+    const row = await q(sb.from('projects').insert({
+      name, type, client: (fd.get('client') || '').trim(), location: (fd.get('location') || '').trim(),
+      color: PALETTE[S.projects.length % PALETTE.length], data, updated_by: S.user.id
+    }).select('id').single());
+    S.pendingLogs.push({ pid: row.id, t: Date.now(), by: S.user.name, role: S.user.role, kind: 'other', text: `أنشأ المشروع ${name} (${TYPE_LABEL[type]})` });
+    await flushLogs();
+    await enterProject(row.id);
+    S.view = 'site';
+    render();
+  },
+
+  editproj: async fd => {
+    if (!need('admin')) return;
+    const p = S.p;
+    const name = (fd.get('name') || '').trim();
+    if (!name) return toast('الاسم مطلوب', 'err');
+    Object.assign(p, { name, client: (fd.get('client') || '').trim(), location: (fd.get('location') || '').trim(), color: fd.get('color') || p.color });
+    logP(p, { kind: 'other', text: 'عدّل بيانات المشروع' });
+    if (await saveDoc()) { closeModal(); render(); }
+  },
+
+  model: async (fd, f) => {
+    if (!need('admin')) return;
+    const p = S.p;
+    const name = (fd.get('name') || '').trim();
+    const count = Math.max(0, +fd.get('count') || 0);
+    if (!name) return toast('الاسم مطلوب', 'err');
+    let m = getM(p, f.dataset.m);
+    const isNew = !m;
+    if (m && count < m.houses.length && !confirm(`سيتم حذف ${m.houses.length - count} منزل (الأرقام الأكبر) من هذا النموذج مع نسب إنجازها. متابعة؟`)) return;
+    if (isNew) {
+      const base = p.models[0];
+      m = { id: uid(), name, area: 0, color: '', stages: base ? base.stages.map(s => ({ id: uid(), name: s.name, test: s.test, w: wt(s) })) : makeStages(p, false), houses: [] };
+      p.models.push(m);
+    }
+    if (count < m.houses.length) { m.houses.sort((a, b) => a.no - b.no); m.houses.splice(count); }
+    while (m.houses.length < count) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '' });
+    Object.assign(m, { name, area: +fd.get('area') || 0, color: fd.get('color') || PALETTE[0] });
+    const hv = String(fd.get('hw') || '').trim();
+    if (hv !== '') { const nv = Math.max(0, parseFloat(hv) || 0); m.houses.forEach(h => { h.w = nv; }); }
+    logP(p, { kind: 'other', text: isNew ? `أضاف النموذج ${name} (${count} منزل)` : `عدّل النموذج ${name}` });
+    if (await saveDoc()) { closeModal(); render(); }
+  },
+
+  stages: async (fd, f) => {
+    if (!need('stages')) return;
+    const p = S.p, m = getM(p, f.dataset.m);
+    if (!m) return;
+    const rows = readStageRows(f).filter(r => r.name);
+    const apply = (model, list) => {
+      const keep = new Set(list.map(s => s.id));
+      model.stages.forEach(s => { if (!keep.has(s.id)) model.houses.forEach(h => { delete h.prog[s.id]; }); });
+      model.stages = list;
+    };
+    apply(m, rows.map(r => ({ id: r.id || uid(), name: r.name, test: r.test, w: r.w })));
+    const all = fd.get('all') === 'on';
+    if (all) {
+      p.models.filter(x => x !== m).forEach(x => apply(x, rows.map(r => {
+        const same = x.stages.find(s => s.name === r.name);
+        return { id: same ? same.id : uid(), name: r.name, test: r.test, w: r.w };
+      })));
+    }
+    logP(p, { kind: 'stages', text: all ? `رتّب فقرات كل النماذج (${rows.length} فقرة)` : `رتّب فقرات النموذج ${m.name} (${rows.length} فقرة)` });
+    if (await saveDoc()) { closeModal(); render(); }
+  },
+
+  house: async (fd, f) => {
+    if (!need('progress')) return;
+    const p = S.p;
+    const u = unitById(p, f.dataset.id);
+    if (!u) return;
+    let n = 0;
+    u.stages.forEach(s => { if (fd.has('s_' + s.id) && setStagePct(p, u, s.id, fd.get('s_' + s.id))) n++; });
+    const note = (fd.get('note') || '').trim();
+    if (note !== (u.house.note || '')) { u.house.note = note; logP(p, { kind: 'other', unitId: u.id, text: `ملاحظة على ${u.label}: ${note.slice(0, 80)}` }); n++; }
+    if (fd.has('w') && can('stages')) { const nw = Math.max(0, parseFloat(fd.get('w')) || 0); if (nw !== wt(u.house)) { u.house.w = nw; logP(p, { kind: 'other', unitId: u.id, text: `غيّر وزن ${u.label} إلى ${nw}` }); n++; } }
+    if (!n) { closeModal(); return toast('لا توجد تغييرات'); }
+    if (await saveDoc()) { closeModal(); render(); toast('تم حفظ تحديثات ' + u.label, 'ok'); }
+  },
+
+  bld: async (fd, f) => {
+    const p = S.p;
+    let b = p.buildings.find(x => x.id === f.dataset.id);
+    const isNew = !b;
+    if (isNew && !need('admin')) return;
+    if (!isNew && !(can('stages') || can('progress'))) return;
+    const rows = readStageRows(f).filter(r => r.name);
+    if (isNew) { b = { id: uid(), name: '', color: '', stages: [], note: '' }; p.buildings.push(b); }
+    if (isAdmin()) {
+      const name = (fd.get('name') || '').trim() || b.name || 'بناية';
+      if (!isNew && name !== b.name) logP(p, { kind: 'other', unitId: b.id, text: `غيّر اسم ${b.name} إلى ${name}` });
+      b.name = name;
+      b.color = fd.get('color') || b.color || PALETTE[0];
+      b.kind = fd.get('kind') === 'infra' ? 'infra' : 'building';
+      const wv = String(fd.get('w') || '').trim();
+      b.w = wv === '' ? 1 : Math.max(0, parseFloat(wv) || 0);
+    }
+    if (can('stages')) {
+      const old = new Map(b.stages.map(s => [s.id, s]));
+      const changed = rows.length !== b.stages.length || rows.some((r, i) => !b.stages[i] || r.id !== b.stages[i].id || r.name !== b.stages[i].name || r.test !== b.stages[i].test);
+      b.stages = rows.map(r => { const o = old.get(r.id); return { id: r.id || uid(), name: r.name, test: r.test, w: r.w, pct: o ? pct(o.pct) : 0 }; });
+      if (changed && !isNew) logP(p, { kind: 'stages', unitId: b.id, text: `رتّب فقرات ${b.name} (${b.stages.length} فقرة)` });
+    }
+    if (can('progress')) {
+      const u = unitById(p, b.id);
+      rows.forEach((r, i) => {
+        const s = can('stages') ? b.stages[i] : b.stages.find(x => x.id === r.id);
+        if (!s) return;
+        if (isNew) s.pct = r.pct; else setStagePct(p, u, s.id, r.pct);
+      });
+    }
+    const note = (fd.get('note') || '').trim();
+    if (fd.has('note') && note !== (b.note || '')) { b.note = note; if (!isNew) logP(p, { kind: 'other', unitId: b.id, text: `ملاحظة على ${b.name}: ${note.slice(0, 80)}` }); }
+    if (isNew) logP(p, { kind: 'other', unitId: b.id, text: `أضاف ${b.name}` });
+    if (await saveDoc()) { closeModal(); render(); toast('تم الحفظ', 'ok'); }
+  },
+
+  bulk: async fd => {
+    if (!need('progress')) return;
+    const p = S.p;
+    const name = fd.get('stage'), model = fd.get('model'), val = pct(fd.get('val'));
+    let a = +fd.get('from'), z = +fd.get('to');
+    if (a > z) [a, z] = [z, a];
+    const targets = units(p).filter(u => (model === 'all' || (u.model && u.model.id === model)) && u.no >= a && u.no <= z);
+    if (!targets.length) return toast('لا توجد منازل في هذا المدى', 'err');
+    let n = 0;
+    targets.forEach(u => { const s = u.stages.find(x => x.name === name); if (s && setStagePct(p, u, s.id, val)) n++; });
+    if (!n) { closeModal(); return toast('لا توجد تغييرات'); }
+    if (await saveDoc()) { closeModal(); render(); toast(`تم تحديث "${name}" إلى ${val}% في ${n} منزل`, 'ok'); }
+  },
+
+  cat: async fd => {
+    if (!need('tests')) return;
+    const p = S.p;
+    const name = (fd.get('name') || '').trim();
+    if (!name) return;
+    if (p.testCats.some(c => c.name === name)) return toast('هذا الصنف موجود', 'err');
+    p.testCats.push({ id: uid(), name, records: [] });
+    logP(p, { kind: 'other', text: `أضاف صنف فحص جديد: ${name}` });
+    if (await saveDoc()) { openModal('أصناف الفحوصات', catsForm(S.p)); render(); }
+  },
+
+  rec: async (fd, f) => {
+    if (!need('tests')) return;
+    const p = S.p;
+    const c = p.testCats.find(x => x.id === fd.get('cat'));
+    if (!c) return toast('اختر صنف الفحص', 'err');
+    const raw = (fd.get('unit') || '').trim();
+    if (!raw) return toast('حدد الوحدة أو الزون', 'err');
+    const newFiles = (fd.getAll('files') || []).filter(x => x && x.size);
+    const list = expandUnits(p, raw);
+    if (!list) return toast('النطاق كبير جداً', 'err');
+    if (list.length > 1 && !f.dataset.id) return saveManyRecs(p, c, fd, list, newFiles);
+    const u = matchUnit(p, raw);
+    const old = f.dataset.id ? findRec(p, f.dataset.oldcat, f.dataset.id) : null;
+    const rec = old && old.r ? Object.assign({}, old.r) : { id: uuid(), files: [], by: S.user.name, createdBy: S.user.id, t: Date.now() };
+    Object.assign(rec, {
+      catId: c.id, unitId: u ? u.id : '', unit: u ? u.label : raw, date: fd.get('date') || '',
+      sample: (fd.get('sample') || '').trim(), lab: (fd.get('lab') || '').trim(), result: (fd.get('result') || '').trim(),
+      status: fd.get('status') || 'pending', notes: (fd.get('notes') || '').trim()
+    });
+    const rm = fd.getAll('rmfile');
+    S.lastWrite = Date.now();
+    setSync(true);
+    if (newFiles.length) toast(`جارٍ رفع ${newFiles.length} ملف…`);
+    const uploaded = await uploadFiles(p.id, rec.id, newFiles);
+    rec.files = rec.files.filter(x => !rm.includes(x.path)).concat(uploaded);
+    try {
+      if (old && old.r) {
+        const row = recToRow(rec, p.id);
+        delete row.id; delete row.project_id; delete row.by_name;
+        await q(sb.from('test_records').update(row).eq('id', rec.id));
+        await removeFiles(rm);
+        old.c.records = old.c.records.filter(x => x.id !== rec.id);
+        c.records.push(rec);
+        logP(p, { kind: 'test', unitId: rec.unitId, text: `عدّل ${c.name} ${toLabel(rec.unit)}: ${STATUS[rec.status]}${rec.result ? ' (' + rec.result + ')' : ''}` });
+      } else {
+        const row = await q(sb.from('test_records').insert(Object.assign(recToRow(rec, p.id), { created_by: S.user.id })).select('created_at').single());
+        rec.t = Date.parse(row.created_at);
+        c.records.push(rec);
+        logP(p, { kind: 'test', unitId: rec.unitId, text: `أضاف ${c.name} ${toLabel(rec.unit)}: ${STATUS[rec.status]}${rec.result ? ' (' + rec.result + ')' : ''}${uploaded.length ? ' مع ' + uploaded.length + ' ملف' : ''}` });
+      }
+    } catch (e) {
+      await removeFiles(uploaded.map(x => x.path));
+      throw e;
+    } finally { setSync(false); }
+    await flushLogs();
+    closeModal(); render();
+    toast(u ? `تم حفظ الفحص وربطه ب${u.label}` : `تم حفظ الفحص للزون "${raw}"`, 'ok');
+  },
+
+  visit: async fd => {
+    if (!need('visits')) return;
+    const p = S.p;
+    const notes = (fd.get('notes') || '').trim();
+    if (!notes) return;
+    S.lastWrite = Date.now();
+    const row = await q(sb.from('visits').insert({ project_id: p.id, visit_date: fd.get('date') || null, notes, open: fd.get('open') === 'on', by_name: S.user.name, created_by: S.user.id }).select('*').single());
+    p.visits.unshift(visitFromRow(row));
+    logP(p, { kind: 'visit', text: `أضاف زيارة/ملاحظة: ${notes.slice(0, 80)}` });
+    await flushLogs();
+    render();
+  },
+
+  pw: async fd => {
+    const nw = fd.get('nw') || '';
+    if (nw.length < 6) return toast('كلمة المرور الجديدة 6 أحرف على الأقل', 'err');
+    const { error: e1 } = await sb.auth.signInWithPassword({ email: toEmail(S.user.username), password: fd.get('old') || '' });
+    if (e1) return toast('كلمة المرور الحالية غير صحيحة', 'err');
+    const { error } = await sb.auth.updateUser({ password: nw });
+    if (error) throw error;
+    render(); toast('تم تغيير كلمة المرور', 'ok');
+  },
+  office: async fd => {
+    if (!need('admin')) return;
+    const name = (fd.get('name') || '').trim();
+    await q(sb.from('office').update({ name }).eq('id', 1));
+    S.office.name = name;
+    render(); toast('تم الحفظ', 'ok');
+  },
+  ai: async fd => {
+    if (!isOwner()) return toast('للمدير الرئيسي فقط', 'err');
+    S.aiStatus = await api('ai-key', { key: (fd.get('key') || '').trim(), model: (fd.get('model') || '').trim() });
+    S.office.ai_enabled = S.aiStatus.enabled;
+    render(); toast('تم حفظ إعدادات المهندس الذكي', 'ok');
+  }
+};
+
+/* ================= ربط الأحداث ================= */
+function lock(on) {
+  S.busy = on;
+  $$('#modal button.primary, main button.primary, .authbox button.primary').forEach(b => { b.disabled = on; });
+}
+
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  e.preventDefault();
+  const fn = ACT[el.dataset.act];
+  if (!fn) return;
+  try { await fn(el.dataset, el); }
+  catch (err) { console.error(err); toast(errMsg(err), 'err'); if (S.p && /conflict|version/i.test(String(err))) reloadProject(); }
+});
+
+document.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === 'aiform') {
+    const i = f.querySelector('input');
+    const qs = i.value;
+    i.value = '';
+    aiAsk(qs);
+    return;
+  }
+  const fn = FORMS[f.dataset.form];
+  if (!fn || S.busy) return;
+  lock(true);
+  try { await fn(new FormData(f), f); }
+  catch (err) { console.error(err); toast(errMsg(err), 'err'); }
+  finally {
+    lock(false);
+    if (S.stale && $('#modal').hidden && S.p) reloadProject(true);
+  }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.type === 'range') { const o = t.parentNode.querySelector('output'); if (o) o.textContent = t.value + '%'; }
+  const f = t.closest('form');
+  if (f && f.dataset.form === 'project') updRemain(f);
+  const key = t.dataset.filter === 'q' ? 'filter' : t.dataset.tfilter === 'q' ? 'tf' : '';
+  if (key) {
+    S[key].q = t.value;
+    const pos = t.selectionStart;
+    render();
+    const ni = $(key === 'filter' ? '[data-filter=q]' : '[data-tfilter=q]');
+    if (ni) { ni.focus(); try { ni.setSelectionRange(pos, pos); } catch (err) { /* تجاهل */ } }
+  }
+});
+
+document.addEventListener('change', async e => {
+  const t = e.target;
+  try {
+    if (t.dataset.filter === 'st' || t.dataset.filter === 'model') { S.filter[t.dataset.filter] = t.value; render(); return; }
+    if (t.dataset.tfilter === 'st') { S.tf.st = t.value; render(); return; }
+    if (t.dataset.chg === 'stg-model') { const m = getM(S.p, t.value); if (m) openModal('ترتيب فقرات الإنجاز', stagesForm(S.p, m)); return; }
+    if (t.dataset.chg === 'rec') {
+      if (!need('tests')) return;
+      const p = S.p;
+      const { c, r } = findRec(p, t.dataset.c, t.dataset.id);
+      if (!r) return;
+      S.lastWrite = Date.now();
+      await q(sb.from('test_records').update({ status: t.value }).eq('id', r.id));
+      r.status = t.value;
+      logP(p, { kind: 'test-status', unitId: r.unitId, text: `غيّر حالة ${c.name} ${toLabel(r.unit)} إلى ${STATUS[r.status]}` });
+      await flushLogs();
+      render();
+    }
+    if (t.dataset.chg === 'role') {
+      if (!need('admin')) return;
+      const u = userById(t.dataset.id);
+      if (!u || u.id === S.user.id || u.is_owner) return;
+      if (u.status === 'pending') return;
+      await q(sb.from('profiles').update({ role: t.value }).eq('id', u.id));
+      u.role = t.value;
+      render(); toast('تم تغيير الدور', 'ok');
+    }
+  } catch (err) { console.error(err); toast(errMsg(err), 'err'); render(); }
+});
+
+$('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal') closeModal(); });
+
+(async function init() {
+  if (!configured) { S.boot = false; return render(); }
+  render();
+  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && S.user) { S.user = null; S.p = null; unsubscribe(); resetAI(); render(); } });
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) await afterAuth();
+    else { S.boot = false; render(); }
+  } catch (e) {
+    S.boot = false; render(); toast(errMsg(e), 'err');
+  }
+})();
+</script>
+</body>
+</html>
