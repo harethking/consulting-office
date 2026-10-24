@@ -285,6 +285,9 @@ const uuid = () => {
 const pct = v => Math.max(0, Math.min(100, Math.round(+v || 0)));
 const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0;
 const wt = x => (x && x.w !== undefined && x.w !== '' && +x.w >= 0 ? +x.w : 1);
+const wavgX = (items, val, w) => { const tot = items.reduce((a, x) => a + w(x), 0); return tot ? items.reduce((a, x) => a + val(x) * w(x), 0) / tot : 0; };
+const clampP = v => Math.max(0, Math.min(100, +v || 0));
+const fmtP = v => { const x = clampP(v); return Number.isInteger(x) ? String(x) : x.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''); };
 const wavg = (items, val, w) => { const tot = items.reduce((a, x) => a + w(x), 0); return tot ? Math.round(items.reduce((a, x) => a + val(x) * w(x), 0) / tot) : 0; };
 const toLatin = s => String(s ?? '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
 const norm = s => toLatin(s).replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
@@ -307,16 +310,19 @@ const ROLE_DESC = {
 const ROLE_COLOR = { admin: '#7c3aed', staff: '#0284c7', contractor: '#ea580c' };
 const PERMS = { admin: ['*'], staff: ['progress', 'stages', 'tests', 'visits'], contractor: ['visits'] };
 const DEFAULT_CATS = ['فحوصات الطابوق', 'فحوصات التراب', 'فحوصات الكونكريت'];
+const FLOORS = ['الطابق الأرضي', 'الطابق الأول'];
+const FLOOR_STAGES = [
+  ['صب الأعمدة', 'كونكريت'], ['البناء بالطابوق', 'طابوق'], ['صب السقف', 'كونكريت'], ['اللبخ', ''],
+  ['مد أنابيب الكهرباء', ''], ['سحب الأسلاك الكهربائية', ''], ['مد أنابيب الماء', ''], ['مد أنابيب المجاري', ''], ['الكاشي والسيراميك', '']
+];
 const DEFAULT_STAGES = [
   ['الحفريات', ''], ['الدفن والحدل', 'تراب'], ['صب النظافة', 'كونكريت'], ['صب الرافت', 'كونكريت'],
-  ['صب الأعمدة', 'كونكريت'], ['البناء بالطابوق', 'طابوق'], ['صب السقف', 'كونكريت'], ['اللبخ', ''],
-  ['مد أنابيب الكهرباء', ''], ['سحب الأسلاك الكهربائية', ''], ['تركيب مفاتيح ومآخذ', ''], ['تركيب الإنارة', ''], ['تركيب لوحة التوزيع', ''],
-  ['مد أنابيب الماء', ''], ['تركيب خزان الماء', ''],
-  ['مد أنابيب المجاري', ''], ['تركيب المصارف والكلي', ''],
-  ['تركيب المغاسل والخلاطات', ''], ['تركيب الحمامات والمراحيض', ''], ['الكاشي والسيراميك', ''], ['الدهن والتشطيبات', '']
+  ...FLOORS.flatMap(f => FLOOR_STAGES.map(([n, k]) => [`${n} — ${f}`, k])),
+  ['تركيب مفاتيح ومآخذ', ''], ['تركيب الإنارة', ''], ['تركيب لوحة التوزيع', ''], ['تركيب خزان الماء', ''],
+  ['تركيب المصارف والكلي', ''], ['تركيب المغاسل والخلاطات', ''], ['تركيب الحمامات والمراحيض', ''], ['الدهن والتشطيبات', '']
 ];
 const AI_DEFAULT_MODEL = 'gemini-flash-latest';
-const UTIL_STAGES = ['مد أنابيب الكهرباء', 'سحب الأسلاك الكهربائية', 'تركيب مفاتيح ومآخذ', 'تركيب الإنارة', 'تركيب لوحة التوزيع', 'مد أنابيب الماء', 'تركيب خزان الماء', 'مد أنابيب المجاري', 'تركيب المصارف والكلي', 'تركيب المغاسل والخلاطات', 'تركيب الحمامات والمراحيض'];
+const UTIL_STAGES = DEFAULT_STAGES.map(x => x[0]).filter(n => /كهرباء|الأسلاك|مفاتيح|الإنارة|لوحة|الماء|المجاري|المصارف|المغاسل|الحمامات/.test(n));
 
 const IC = {
   home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
@@ -622,9 +628,9 @@ function units(p) {
   return out;
 }
 const unitPct = u => wavg(u.stages, s => s.pct, wt);
-const projectPct = p => wavg(units(p), unitPct, wt);
+const projectPct = p => +wavgX(units(p), u => wavgX(u.stages, s => s.pct, wt), wt).toFixed(2);
 const housePct = (m, h) => wavg(m.stages, s => pct(h.prog[s.id]), wt);
-const modelPct = m => wavg(m.houses, h => housePct(m, h), wt);
+const modelPct = m => +wavgX(m.houses, h => wavgX(m.stages, s => pct(h.prog[s.id]), wt), wt).toFixed(2);
 const unitById = (p, id) => units(p).find(u => u.id === id);
 const nosRange = m => { if (!m.houses.length) return '-'; const n = m.houses.map(h => h.no); return Math.min(...n) + ' – ' + Math.max(...n); };
 function stageNames(p) {
@@ -685,7 +691,7 @@ function setStagePct(p, u, stageId, val) {
 }
 
 /* ================= عناصر الواجهة ================= */
-const bar = (v, c, lbl) => `<div class="bar"><i style="width:${pct(v)}%;background:${c || 'var(--brand)'}"></i></div><div class="barlbl"><span>${lbl || 'الإنجاز'}</span><b>${pct(v)}%</b></div>`;
+const bar = (v, c, lbl) => `<div class="bar"><i style="width:${clampP(v)}%;background:${c || 'var(--brand)'}"></i></div><div class="barlbl"><span>${lbl || 'الإنجاز'}</span><b>${fmtP(v)}%</b></div>`;
 const roleBadge = r => `<span class="role ${r}">${ROLES[r] || r}</span>`;
 const catOptions = (p, sel, none) => (none === false ? '' : `<option value="">— لا يتطلب فحصاً —</option>`) + p.testCats.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
 const mrow = (n = '', c = '', a = '') => `<div class="mrow"><input name="mname" value="${esc(n)}" placeholder="اسم النموذج"><input name="mcount" type="number" min="0" value="${esc(c)}" placeholder="العدد"><input name="marea" type="number" min="0" value="${esc(a)}" placeholder="المساحة م²"><button type="button" class="x" data-act="del-row">✕</button></div>`;
