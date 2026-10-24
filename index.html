@@ -1172,7 +1172,7 @@ function stagesForm(p, m) {
     <label>النموذج<select data-chg="stg-model">${p.models.map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.name)} (${x.houses.length} منزل)</option>`).join('')}</select></label>
     <p class="muted small" style="margin:0">رتّب فقرات الإنجاز، وحدد وزن كل فقرة (أهميتها في نسبة الإنجاز)، والفحص المختبري المطلوب لها. ويمكنك إضافة فقرة جديدة.</p>
     <div class="slist">${m.stages.map(s => stageRow(p, s, false)).join('')}</div>
-    <div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="0">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق (كهرباء، ماء، مجاري، صحيات)</button></div>
+    <div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="0">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق التفصيلية (يستبدل البنود القديمة)</button></div>
     ${p.models.length > 1 ? '<label class="chk"><input type="checkbox" name="all"> تطبيق نفس الفقرات على كل النماذج (تبقى النسب للفقرات التي لها نفس الاسم)</label>' : ''}
     <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ الفقرات</button></div>
   </form>`;
@@ -1214,7 +1214,7 @@ function buildingForm(p, b) {
       <label>اللون<input type="color" name="color" value="${b ? b.color : PALETTE[p.buildings.length % PALETTE.length]}" ${isAdmin() ? '' : 'disabled'}></label></div>
     <h4 style="margin:0">الفقرات ونسب الإنجاز</h4>
     <div class="slist">${(b ? b.stages : makeStages(p, true)).map(s => stageRow(p, s, true)).join('')}</div>
-    ${can('stages') ? '<div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="1">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق (كهرباء، ماء، مجاري، صحيات)</button></div>' : ''}
+    ${can('stages') ? '<div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="1">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق التفصيلية (يستبدل البنود القديمة)</button></div>' : ''}
     <label>ملاحظات<textarea name="note" rows="2" ${edit ? '' : 'disabled'}>${esc(b ? b.note || '' : '')}</textarea></label>
     <div class="foot">${b && isAdmin() ? `<button type="button" class="danger" data-act="del-bld" data-id="${b.id}">حذف البناية</button>` : ''}
       ${b ? `<button type="button" class="ghost sm" data-act="ai-q" data-q="${esc(b.name)}">✦ اسأل المهندس الذكي</button>` : ''}
@@ -1648,11 +1648,25 @@ const ACT = {
   'add-utils': (d, el) => {
     const f = el.closest('form');
     const list = f.querySelector('.slist');
-    const have = new Set([...f.querySelectorAll('[data-k=name]')].map(i => i.value.trim()));
     const withPct = !!f.querySelector('[data-k=pct]');
+    const OLD = ['الكهرباء', 'الماء', 'المجاري', 'الصحيات'];
+    const hasProg = sid => {
+      if (f.dataset.m) { const m = getM(S.p, f.dataset.m); return !!m && m.houses.some(h => pct(h.prog[sid]) > 0); }
+      const bl = S.p.buildings.find(x => x.id === f.dataset.id);
+      return !!bl && bl.stages.some(s => s.id === sid && pct(s.pct) > 0);
+    };
+    let removed = 0, kept = 0;
+    f.querySelectorAll('.srow').forEach(r => {
+      const nm = r.querySelector('[data-k=name]').value.trim();
+      if (!OLD.includes(nm)) return;
+      if (r.dataset.sid && hasProg(r.dataset.sid)) { kept++; return; }
+      r.remove(); removed++;
+    });
+    const have = new Set([...f.querySelectorAll('[data-k=name]')].map(i => i.value.trim()));
     const missing = UTIL_STAGES.filter(n => !have.has(n));
-    if (!missing.length) return toast('فقرات المرافق موجودة بالفعل');
     missing.forEach(n => list.insertAdjacentHTML('beforeend', stageRow(S.p, { id: '', name: n, test: '', pct: 0, w: 1 }, withPct)));
+    if (!missing.length && !removed) return toast('فقرات المرافق موجودة بالفعل');
+    toast(`أُضيفت ${missing.length} فقرة${removed ? '، وأُزيلت ' + removed + ' قديمة' : ''}${kept ? '، وبقيت ' + kept + ' قديمة لأن عليها نسب إنجاز' : ''}. اضغط حفظ`, 'ok');
   },
   'add-bld': () => { if (need('admin')) openModal('إضافة بناية', buildingForm(S.p, null)); },
   'open-bld': d => { const b = S.p.buildings.find(x => x.id === d.id); if (b) openModal(b.name, buildingForm(S.p, b)); },
