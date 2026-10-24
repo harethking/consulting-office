@@ -1403,6 +1403,7 @@ async function aiAsk(qs) {
   openAI(true);
   const history = S.chat.map(m => ({ role: m.role === 'user' ? 'user' : 'model', text: m.raw }));
   S.chat.push({ role: 'user', raw: qs });
+  saveChatMsg('user', qs, p ? p.id : null);
   S.aiBusy = true;
   renderChat();
   let ans;
@@ -1417,6 +1418,7 @@ async function aiAsk(qs) {
     ans = p ? aiLocal(qs, p) : aiLocalAll();
   }
   S.aiBusy = false;
+  saveChatMsg('ai', ans, p ? p.id : null);
   if (S.p !== p) return;
   S.chat.push({ role: 'ai', raw: ans });
   renderChat();
@@ -1482,9 +1484,28 @@ function openAI(noFocus) {
   if (!S.user) return;
   $('#ai').hidden = false;
   renderChat();
+  loadChat();
   if (!noFocus) setTimeout(() => { const i = $('#aiform input'); if (i) i.focus(); }, 50);
 }
-function resetAI() { S.chat = []; S.aiBusy = false; $('#ai').hidden = true; }
+function resetAI() { S.chat = []; S.chatScope = null; S.aiBusy = false; $('#ai').hidden = true; }
+
+/* حفظ المحادثات: لكل مستخدم محادثاته فقط، منفصلة لكل مشروع وللوحة كل المشاريع */
+const chatQuery = (qb, p) => { qb = qb.eq('user_id', S.user.id); return p ? qb.eq('project_id', p.id) : qb.is('project_id', null); };
+function saveChatMsg(role, text, pid) {
+  sb.from('ai_messages').insert({ role, text: String(text).slice(0, 20000), project_id: pid })
+    .then(({ error }) => { if (error) console.warn('ai_messages:', error.message); });
+}
+async function loadChat() {
+  const p = S.p, key = p ? p.id : 'all';
+  if (S.chatScope === key) return;
+  S.chatScope = key;
+  try {
+    const rows = await q(chatQuery(sb.from('ai_messages').select('role,text,created_at'), p).order('created_at', { ascending: false }).limit(100));
+    if (S.chatScope !== key) return;
+    S.chat = rows.reverse().map(r => ({ role: r.role, raw: r.text })).concat(S.chat);
+    renderChat();
+  } catch (e) { S.chatScope = null; toast(errMsg(e), 'err'); }
+}
 
 /* ================= ملفات الفحوصات ================= */
 async function uploadFiles(pid, recId, fileList) {
@@ -1589,7 +1610,11 @@ const ACT = {
 
   'ai-open': () => openAI(),
   'ai-close': () => { $('#ai').hidden = true; },
-  'ai-clear': () => { S.chat = []; renderChat(); },
+  'ai-clear': async () => {
+    if (!confirm('مسح كل محادثاتك المحفوظة مع المهندس الذكي في هذا القسم؟')) return;
+    try { await q(chatQuery(sb.from('ai_messages').delete(), S.p)); } catch (e) { return toast(errMsg(e), 'err'); }
+    S.chat = []; renderChat(); toast('تم مسح المحادثات', 'ok');
+  },
   'ai-q': d => { closeModal(); aiAsk(d.q); },
   'ai-key-clear': async () => {
     if (!isOwner() || !confirm('حذف مفتاح Gemini؟ سيعمل المهندس الذكي بالمحرك المدمج.')) return;

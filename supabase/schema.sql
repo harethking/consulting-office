@@ -197,3 +197,27 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ===================== إضافات لاحقة =====================
+-- نسبة الإنجاز الكلي للمشروع (تُحدَّث عند كل حفظ)
+alter table public.projects add column if not exists progress numeric(6,2) not null default 0;
+
+-- محادثات المهندس الذكي: كل مستخدم يرى محادثاته فقط
+create table if not exists public.ai_messages (
+  id bigint generated always as identity primary key,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  project_id uuid references public.projects(id) on delete cascade,
+  role text not null check (role in ('user','ai')),
+  text text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists ai_messages_user_idx on public.ai_messages (user_id, project_id, created_at desc);
+alter table public.ai_messages enable row level security;
+revoke all on public.ai_messages from anon;
+create policy ai_msg_select on public.ai_messages for select to authenticated
+  using (user_id = (select auth.uid()) and public.is_active());
+create policy ai_msg_insert on public.ai_messages for insert to authenticated
+  with check (user_id = (select auth.uid()) and public.is_active());
+create policy ai_msg_delete on public.ai_messages for delete to authenticated
+  using (user_id = (select auth.uid()));
+revoke update on public.ai_messages from authenticated;
