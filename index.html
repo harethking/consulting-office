@@ -768,7 +768,7 @@ function viewHome() {
         <div class="grow"><b style="font-size:16px">${esc(p.name)}</b><div class="small muted">${TYPE_LABEL[p.type]}</div></div></div>
       <div class="small muted" style="margin-top:10px">${esc(p.client || '—')}${p.location ? ' · ' + esc(p.location) : ''}</div>
       <div style="margin-top:12px">${bar(p.progress || 0, p.color, 'الإنجاز الكلي')}</div>
-      <div style="margin-top:12px"><span class="badge">دخول إلى المشروع ←</span></div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center"><span class="badge">دخول إلى المشروع ←</span><span class="grow"></span>${isAdmin() ? `<button type="button" class="danger sm" data-act="del-home" data-id="${p.id}">حذف المشروع</button>` : ''}</div>
     </div>`).join('');
   return `<div class="row" style="margin-bottom:16px"><div><h2>اختر المشروع</h2><div class="muted small">تدخل إلى مشروع واحد في كل مرة. للانتقال إلى مشروع آخر اخرج من المشروع الحالي.</div></div><span class="grow"></span>
       <button type="button" class="ghost" data-act="ai-open">✦ المهندس الذكي</button>
@@ -1636,6 +1636,22 @@ const ACT = {
   'add-mrow': () => $('#models').insertAdjacentHTML('beforeend', mrow()),
   'del-row': (d, el) => { const f = el.closest('form'); el.closest('.mrow').remove(); updRemain(f); },
   'edit-project': () => { if (need('admin')) openModal('تعديل المشروع', editProjectForm(S.p)); },
+  'del-home': async d => {
+    if (!need('admin')) return;
+    const row = S.projects.find(x => x.id === d.id);
+    if (!row) return;
+    if (!confirm(`حذف "${row.name}" وكل بياناته وملفاته نهائياً؟`)) return;
+    if (prompt('للتأكيد اكتب اسم المشروع:') !== row.name) return toast('لم يتم الحذف', 'err');
+    try {
+      const full = await loadProject(row.id);
+      const paths = full ? full.testCats.flatMap(c => c.records.flatMap(r => r.files.map(f => f.path))) : [];
+      await q(sb.from('projects').delete().eq('id', row.id));
+      for (let i = 0; i < paths.length; i += 100) await removeFiles(paths.slice(i, i + 100));
+      await loadHome();
+      render();
+      toast('تم حذف المشروع', 'ok');
+    } catch (e) { toast(errMsg(e), 'err'); }
+  },
   'del-project': async () => {
     if (!need('admin')) return;
     const p = S.p;
