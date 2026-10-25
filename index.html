@@ -312,8 +312,9 @@ const PERMS = { admin: ['*'], staff: ['progress', 'stages', 'tests', 'visits'], 
 const DEFAULT_CATS = ['فحوصات الطابوق', 'فحوصات التراب', 'فحوصات الكونكريت'];
 const FLOORS = ['الطابق الأرضي', 'الطابق الأول'];
 const FLOOR_STAGES = [
-  ['صب الأعمدة', 'كونكريت'], ['البناء بالطابوق', 'طابوق'], ['صب السقف', 'كونكريت'], ['اللبخ', ''],
-  ['مد أنابيب الكهرباء', ''], ['سحب الأسلاك الكهربائية', ''], ['مد أنابيب الماء', ''], ['مد أنابيب المجاري', ''], ['الكاشي والسيراميك', '']
+  ['صب الأعمدة', 'كونكريت'], ['البناء بالطابوق', 'طابوق'],
+  ['مد أنابيب الكهرباء', ''], ['سحب الأسلاك الكهربائية', ''], ['مد أنابيب الماء', ''], ['مد أنابيب المجاري', ''],
+  ['صب السقف', 'كونكريت'], ['اللبخ', ''], ['الكاشي والسيراميك', '']
 ];
 const DEFAULT_STAGES = [
   ['الحفريات', ''], ['الدفن والحدل', 'تراب'], ['صب النظافة', 'كونكريت'], ['صب الرافت', 'كونكريت'],
@@ -1155,7 +1156,7 @@ function modelForm(p, m) {
     <div class="grid2"><label>عدد المنازل<input name="count" type="number" min="0" value="${m ? m.houses.length : ''}" required></label>
       <label>المساحة م²<input name="area" type="number" min="0" value="${m ? m.area : ''}"></label></div>
     <label>لون النموذج<input type="color" name="color" value="${m ? m.color : PALETTE[p.models.length % PALETTE.length]}"></label>
-    <label>وزن كل منزل في هذا النموذج (يُطبَّق على كل منازله)<input name="hw" type="number" min="0" step="0.5" value="${m && m.houses.length ? (m.houses.every(h => wt(h) === wt(m.houses[0])) ? wt(m.houses[0]) : '') : 1}" placeholder="مختلف بين المنازل"></label>
+    <label>وزن كل منزل (فارغ = مساحة النموذج، لتحسب المساحات الأكبر نسبة أكبر)<input name="hw" type="number" min="0" step="0.5" value="${m && m.houses.length && m.houses.every(h => wt(h) === wt(m.houses[0])) ? wt(m.houses[0]) : ''}" placeholder="فارغ = وزن كل منزل يساوي مساحة النموذج"></label>
     ${m ? '<p class="muted small" style="margin:0">زيادة العدد تضيف منازل بأرقام جديدة، وإنقاصه يحذف المنازل ذات الأرقام الأكبر في هذا النموذج.</p>' : ''}
     <div class="foot">${m ? `<button type="button" class="danger" data-act="del-model" data-m="${m.id}">حذف النموذج</button>` : ''}<span class="grow"></span>
       <button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ</button></div>
@@ -1922,7 +1923,7 @@ const FORMS = {
       if (defs.reduce((a, x) => a + x[1], 0) > 5000) return toast('الحد الأعلى 5000 منزل للمشروع', 'err');
       defs.forEach(([n, c, a], i) => {
         const m = { id: uid(), name: n, area: a, color: PALETTE[i % PALETTE.length], stages: makeStages(p, false), houses: [] };
-        for (let k = 0; k < c; k++) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '' });
+        for (let k = 0; k < c; k++) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '', w: a > 0 ? a : 1 });
         p.models.push(m);
       });
     } else {
@@ -1967,10 +1968,12 @@ const FORMS = {
       p.models.push(m);
     }
     if (count < m.houses.length) { m.houses.sort((a, b) => a.no - b.no); m.houses.splice(count); }
-    while (m.houses.length < count) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '' });
+    while (m.houses.length < count) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '', w: +fd.get('area') || 1 });
     Object.assign(m, { name, area: +fd.get('area') || 0, color: fd.get('color') || PALETTE[0] });
     const hv = String(fd.get('hw') || '').trim();
+    const areaV = +fd.get('area') || 0;
     if (hv !== '') { const nv = Math.max(0, parseFloat(hv) || 0); m.houses.forEach(h => { h.w = nv; }); }
+    else if (areaV > 0) m.houses.forEach(h => { h.w = areaV; });
     logP(p, { kind: 'other', text: isNew ? `أضاف النموذج ${name} (${count} منزل)` : `عدّل النموذج ${name}` });
     if (await saveDoc()) { closeModal(); render(); }
   },
