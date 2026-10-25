@@ -1153,7 +1153,8 @@ function editProjectForm(p) {
 function modelForm(p, m) {
   return `<form data-form="model" data-m="${m ? m.id : ''}" class="stack">
     <label>اسم النموذج<input name="name" value="${esc(m ? m.name : '')}" required></label>
-    <div class="grid2"><label>عدد المنازل<input name="count" type="number" min="0" value="${m ? m.houses.length : ''}" required></label>
+    <label>أرقام المنازل كما في المخطط (مثال: 100-150, 500-550)<input name="nums" value="${m ? esc(compressNums(m.houses.map(h => h.no))) : ''}" placeholder="فارغ = ترقيم تلقائي حسب العدد"></label>
+    <div class="grid2"><label>عدد المنازل (يُتجاهل إذا كتبت الأرقام)<input name="count" type="number" min="0" value="${m ? m.houses.length : ''}"></label>
       <label>المساحة م²<input name="area" type="number" min="0" value="${m ? m.area : ''}"></label></div>
     <label>لون النموذج<input type="color" name="color" value="${m ? m.color : PALETTE[p.models.length % PALETTE.length]}"></label>
     <label>وزن كل منزل (فارغ = مساحة النموذج، لتحسب المساحات الأكبر نسبة أكبر)<input name="hw" type="number" min="0" step="0.5" value="${m && m.houses.length && m.houses.every(h => wt(h) === wt(m.houses[0])) ? wt(m.houses[0]) : ''}" placeholder="فارغ = وزن كل منزل يساوي مساحة النموذج"></label>
@@ -1547,6 +1548,37 @@ function readStageRows(form) {
   }));
 }
 const userById = id => S.users.find(u => u.id === id);
+
+/* أرقام المنازل: "100-150, 500-550" إلى قائمة أرقام، وتحويل القائمة إلى نطاقات للعرض */
+function parseNums(raw) {
+  const cleaned = toLatin(String(raw || '')).replace(/\s*[-–]\s*/g, '-');
+  const parts = cleaned.split(/[,،;\s]+/).map(x => x.trim()).filter(Boolean);
+  const out = new Set();
+  for (const x of parts) {
+    const m = x.match(/^(\d+)-(\d+)$/);
+    if (m) {
+      let a = +m[1], z = +m[2];
+      if (a > z) [a, z] = [z, a];
+      if (z - a > 5000) return null;
+      for (let i = a; i <= z; i++) out.add(i);
+    } else if (/^\d+$/.test(x)) out.add(+x);
+    else return null;
+  }
+  return [...out].sort((x, y) => x - y);
+}
+function compressNums(list) {
+  const a = [...list].sort((x, y) => x - y);
+  const out = [];
+  let i = 0;
+  while (i < a.length) {
+    let j = i;
+    while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++;
+    out.push(j > i ? `${a[i]}-${a[j]}` : `${a[i]}`);
+    i = j + 1;
+  }
+  return out.join(', ');
+}
+
 
 /* تحويل إدخال مثل "45-50, 60" إلى قائمة وحدات (الفاصلة تفصل، والنطاق للمنازل فقط) */
 function expandUnits(p, raw) {
@@ -1957,23 +1989,40 @@ const FORMS = {
     if (!need('admin')) return;
     const p = S.p;
     const name = (fd.get('name') || '').trim();
-    const count = Math.max(0, +fd.get('count') || 0);
     if (!name) return toast('الاسم مطلوب', 'err');
+    const rawNums = String(fd.get('nums') || '').trim();
+    const nums = rawNums ? parseNums(rawNums) : null;
+    if (rawNums && (!nums || !nums.length)) return toast('أرقام المنازل غير صحيحة. مثال: 100-150, 500-550', 'err');
+    const count = nums ? nums.length : Math.max(0, +fd.get('count') || 0);
     let m = getM(p, f.dataset.m);
     const isNew = !m;
-    if (m && count < m.houses.length && !confirm(`سيتم حذف ${m.houses.length - count} منزل (الأرقام الأكبر) من هذا النموذج مع نسب إنجازها. متابعة؟`)) return;
+    if (nums) {
+      const taken = new Set(p.models.filter(x => x !== m).flatMap(x => x.houses.map(h => h.no)));
+      const clash = nums.filter(n => taken.has(n));
+      if (clash.length) return toast('أرقام مستخدمة في نموذج آخر: ' + clash.slice(0, 10).join('، '), 'err');
+    }
+    const area = +fd.get('area') || 0;
+    if (m && count < m.houses.length && !confirm(`سيتم حذف ${m.houses.length - count} منزل من هذا النموذج مع نسب إنجازها. متابعة؟`)) return;
     if (isNew) {
       const base = p.models[0];
       m = { id: uid(), name, area: 0, color: '', stages: base ? base.stages.map(s => ({ id: uid(), name: s.name, test: s.test, w: wt(s) })) : makeStages(p, false), houses: [] };
       p.models.push(m);
     }
-    if (count < m.houses.length) { m.houses.sort((a, b) => a.no - b.no); m.houses.splice(count); }
-    while (m.houses.length < count) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '', w: +fd.get('area') || 1 });
-    Object.assign(m, { name, area: +fd.get('area') || 0, color: fd.get('color') || PALETTE[0] });
+    if (nums) {
+      const keep = new Set(nums);
+      m.houses = m.houses.filter(h => keep.has(h.no));
+      const have = new Set(m.houses.map(h => h.no));
+      nums.forEach(n => { if (!have.has(n)) m.houses.push({ id: uid(), no: n, prog: {}, note: '', w: area || 1 }); });
+      m.houses.sort((x, y) => x.no - y.no);
+    } else {
+      if (count < m.houses.length) { m.houses.sort((x, y) => x.no - y.no); m.houses.splice(count); }
+      while (m.houses.length < count) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '', w: area || 1 });
+    }
+    p.nextNo = Math.max(p.nextNo, 1, ...p.models.flatMap(x => x.houses.map(h => h.no + 1)));
+    Object.assign(m, { name, area, color: fd.get('color') || PALETTE[0] });
     const hv = String(fd.get('hw') || '').trim();
-    const areaV = +fd.get('area') || 0;
     if (hv !== '') { const nv = Math.max(0, parseFloat(hv) || 0); m.houses.forEach(h => { h.w = nv; }); }
-    else if (areaV > 0) m.houses.forEach(h => { h.w = areaV; });
+    else if (area > 0) m.houses.forEach(h => { h.w = area; });
     logP(p, { kind: 'other', text: isNew ? `أضاف النموذج ${name} (${count} منزل)` : `عدّل النموذج ${name}` });
     if (await saveDoc()) { closeModal(); render(); }
   },
