@@ -482,12 +482,13 @@ async function loadHome() {
   S.projects = projects || [];
   S.office = office || { name: '', ai_enabled: false };
   S.users = isAdmin() ? await q(sb.from('profiles').select('*').order('created_at')) : [];
+  await trashLoad().catch(() => { S.trash = []; });
 }
 
 /* ================= تحميل المشروع وحفظه ================= */
 function normProject(p) {
   p.models = p.models || []; p.buildings = p.buildings || []; p.testCats = p.testCats || [];
-  p.visits = p.visits || []; p.log = p.log || []; p.nextNo = p.nextNo || 1;
+  p.visits = p.visits || []; p.log = p.log || []; p.nextNo = p.nextNo || 1; p.periods = p.periods || [];
   p.testCats.forEach(c => { c.records = c.records || []; });
   p.models.forEach(m => { m.stages = m.stages || []; m.houses = m.houses || []; m.houses.forEach(h => { h.prog = h.prog || {}; }); });
   p.buildings.forEach(b => { b.stages = b.stages || []; });
@@ -535,7 +536,7 @@ async function reloadProject(quiet) {
 /* حفظ بنية المشروع (النماذج والمنازل والفقرات والأصناف) مع منع الكتابة فوق تعديلات غيرك */
 async function saveDoc() {
   const p = S.p;
-  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo };
+  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [] };
   S.lastWrite = Date.now();
   setSync(true);
   const { data: rows, error } = await sb.from('projects')
@@ -757,6 +758,7 @@ function outerLayout(body) {
       <div class="grow"><b>${esc(S.office.name || 'المكتب الاستشاري')}</b><div class="small" style="color:#e0f2fe">${esc(S.user.name)} · ${ROLES[S.user.role]}${isOwner() ? ' (المدير الرئيسي)' : ''}</div></div>
       ${b('home', 'المشاريع')}
       ${isAdmin() ? b('users', 'المستخدمون', pend ? `<span class="cnt">${pend}</span>` : '') : ''}
+      ${isOwner() ? b('trash', 'سلة المهملات', S.trash && S.trash.length ? `<span class="cnt">${S.trash.length}</span>` : '') : ''}
       ${b('settings', 'الإعدادات')}
       <button type="button" class="ghost sm" data-act="logout">تسجيل الخروج</button>
     </header><main>${body}</main>`;
@@ -872,6 +874,7 @@ function viewPDash(p) {
       </div>
       <div style="margin-top:12px">${bar(projectPct(p), '#fff', 'نسبة الإنجاز الكلية')}</div>
     </div>
+    ${periodsCard(p)}
     <div class="tiles">
       <div class="tile t1">${p.type === 'complex' ? 'المنازل والمباني' : 'البنايات'}<b>${us.length}</b></div>
       <div class="tile t2">مكتملة<b>${us.filter(u => unitPct(u) >= 100).length}</b></div>
@@ -1103,8 +1106,9 @@ function render() {
   const p = S.p;
   if (!p) {
     if (S.view === 'users' && !isAdmin()) S.view = 'home';
-    if (!['home', 'users', 'settings'].includes(S.view)) S.view = 'home';
-    app.innerHTML = outerLayout(S.view === 'users' ? viewUsers() : S.view === 'settings' ? viewSettings() : viewHome());
+    if (S.view === 'trash' && !isOwner()) S.view = 'home';
+    if (!['home', 'users', 'settings', 'trash'].includes(S.view)) S.view = 'home';
+    app.innerHTML = outerLayout(S.view === 'users' ? viewUsers() : S.view === 'settings' ? viewSettings() : S.view === 'trash' ? viewTrash() : viewHome());
     return;
   }
   const sec = SECTIONS(p).find(x => x[0] === S.view) || SECTIONS(p)[0];
@@ -1624,6 +1628,93 @@ async function saveManyRecs(p, c, fd, list, newFiles) {
   toast(`تم حفظ الفحص لـ ${done} وحدة`, 'ok');
 }
 
+/* ================= سلة المهملات ================= */
+const TRASH_KIND = { project: 'مشروع', record: 'فحص', visit: 'ملاحظة', model: 'نموذج', building: 'بناية / بنية تحتية', cat: 'صنف فحص', stage: 'فقرة إنجاز', period: 'فترة زمنية' };
+const recRowOf = pid => r => ({ ...recToRow(r, pid), created_by: r.createdBy || null });
+async function trashPut(kind, label, payload, projectId) {
+  await q(sb.from('trash').insert({ kind, label, payload, project_id: projectId || null, deleted_by_name: S.user.name }));
+}
+async function trashLoad() {
+  S.trash = isOwner() ? await q(sb.from('trash').select('*').order('deleted_at', { ascending: false })) : [];
+  return S.trash;
+}
+async function rawProjectRows(id) {
+  const [records, visits, logs] = await Promise.all([
+    fetchAll(() => sb.from('test_records').select('*').eq('project_id', id).order('created_at')),
+    fetchAll(() => sb.from('visits').select('*').eq('project_id', id).order('created_at')),
+    fetchAll(() => sb.from('logs').select('*').eq('project_id', id).order('t'), 4000)
+  ]);
+  return { records, visits, logs };
+}
+async function trashProject(id) {
+  const row = await q(sb.from('projects').select('*').eq('id', id).maybeSingle());
+  if (!row) throw new Error('المشروع غير موجود');
+  const raw = await rawProjectRows(id);
+  await trashPut('project', row.name, { project: row, ...raw }, id);
+  await q(sb.from('projects').delete().eq('id', id));
+}
+async function restoreTrash(t) {
+  const P = t.payload;
+  const ins = async (table, rows) => { for (let i = 0; i < rows.length; i += 500) await q(sb.from(table).insert(rows.slice(i, i + 500))); };
+  if (t.kind === 'project') {
+    await q(sb.from('projects').insert(P.project));
+    await ins('test_records', P.records || []);
+    await ins('visits', P.visits || []);
+    await ins('logs', P.logs || []);
+  } else if (t.kind === 'record') {
+    await ins('test_records', [P.row]);
+  } else if (t.kind === 'visit') {
+    await ins('visits', [P.row]);
+  } else {
+    if (t.kind === 'cat') await ins('test_records', P.records || []);
+    const p = await loadProject(t.project_id);
+    if (!p) throw new Error('المشروع الأصلي لم يعد موجوداً، لا يمكن استعادة هذا العنصر');
+    if (t.kind === 'model') p.models.push(P.item);
+    else if (t.kind === 'building') p.buildings.push(P.item);
+    else if (t.kind === 'cat') { const c = { ...P.item, records: [] }; c.records = (P.records || []).map(recFromRow); p.testCats.push(c); }
+    else if (t.kind === 'stage') {
+      const m = p.models.find(x => x.id === P.ownerId) || p.buildings.find(x => x.id === P.ownerId);
+      if (!m) throw new Error('الفقرة تابعة لعنصر لم يعد موجوداً');
+      m.stages.push(P.item);
+    } else if (t.kind === 'period') p.periods.push(P.item);
+    const prev = S.p;
+    S.p = p;
+    try { if (!(await saveDoc())) throw new Error('تعذّر الاستعادة لأن المشروع تغيّر، أعد المحاولة'); }
+    finally { S.p = prev; }
+  }
+  await q(sb.from('trash').delete().eq('id', t.id));
+}
+async function purgeTrash(t) {
+  const P = t.payload;
+  const rows = t.kind === 'project' || t.kind === 'cat' ? (P.records || []) : t.kind === 'record' ? [P.row] : [];
+  const paths = rows.flatMap(r => (r.files || []).map(f => f.path));
+  await q(sb.from('trash').delete().eq('id', t.id));
+  for (let i = 0; i < paths.length; i += 100) await removeFiles(paths.slice(i, i + 100));
+}
+function viewTrash() {
+  const T = S.trash || [];
+  return `<div class="card"><div class="row"><div><h3>سلة المهملات</h3><div class="small muted">كل ما يُحذف يظهر هنا، ولا يراه إلا المدير الرئيسي. ملفات الفحوصات تبقى محفوظة حتى تُحذف نهائياً من هنا.</div></div>
+      <span class="grow"></span>${T.length ? '<button type="button" class="danger sm" data-act="trash-empty">إفراغ السلة نهائياً</button>' : ''}</div></div>
+    ${T.length ? `<div class="stack">${T.map(t => `<div class="card" style="margin:0"><div class="row"><span class="badge">${TRASH_KIND[t.kind] || t.kind}</span><b class="grow">${esc(t.label)}</b></div>
+      <div class="small muted">حُذف ${esc(new Date(t.deleted_at).toLocaleString('ar-IQ'))} بواسطة ${esc(t.deleted_by_name || '—')}</div>
+      <div class="row" style="margin-top:8px"><button type="button" class="ghost sm" data-act="trash-restore" data-id="${t.id}">استعادة</button><button type="button" class="danger sm" data-act="trash-purge" data-id="${t.id}">حذف نهائي</button></div></div>`).join('')}</div>` : '<div class="empty">السلة فارغة</div>'}`;
+}
+function periodsCard(p) {
+  const rows = (p.periods || []).map(x => {
+    const days = x.from && x.to ? Math.round((Date.parse(x.to) - Date.parse(x.from)) / 864e5) + 1 : 0;
+    const left = x.to ? Math.ceil((Date.parse(x.to) - Date.now()) / 864e5) : null;
+    const status = left === null ? '' : left >= 0 ? ` · متبقٍ ${left} يوم` : ` · انتهت قبل ${-left} يوم`;
+    return `<div class="lg" style="--c:${esc(p.color)}"><span class="sw"></span><div class="grow"><b>${esc(x.name)}</b> <span class="small muted">${esc(x.from || '—')} ← ${esc(x.to || '—')}${days ? ` · ${days} يوم` : ''}${status}</span>${x.note ? `<div class="small">${esc(x.note)}</div>` : ''}</div>${can('progress') ? `<button type="button" class="x" data-act="period-del" data-id="${x.id}" title="حذف">✕</button>` : ''}</div>`;
+  }).join('');
+  return `<div class="card"><div class="row" style="margin-bottom:6px"><h3>الفترات الزمنية</h3><span class="grow"></span>${can('progress') ? '<button type="button" class="ghost sm" data-act="period-add">+ إضافة فترة</button>' : ''}</div>
+    ${rows || '<div class="muted small">لا توجد فترات بعد. يمكنك إضافة أكثر من فترة لتقسيم المشروع زمنياً، مثل مرحلة الهيكل ثم مرحلة التشطيب.</div>'}</div>`;
+}
+function periodForm() {
+  return `<form data-form="period" class="stack"><label>اسم الفترة<input name="name" required placeholder="مثال: مرحلة الهيكل"></label>
+    <div class="grid2"><label>من تاريخ<input type="date" name="from"></label><label>إلى تاريخ<input type="date" name="to"></label></div>
+    <label>ملاحظة<input name="note"></label><div><button class="primary">إضافة</button></div></form>`;
+}
+
 const ACT = {
   close: () => closeModal(),
   menu: () => document.body.classList.toggle('sideopen'),
@@ -1636,6 +1727,7 @@ const ACT = {
       if (S.view === 'settings' && !S.p) render();
     }
     if (d.view === 'users' && isAdmin()) { S.users = await q(sb.from('profiles').select('*').order('created_at')); if (S.view === 'users') render(); }
+    if (d.view === 'trash' && isOwner()) { await trashLoad(); if (S.view === 'trash') render(); }
   },
   enter: d => enterProject(d.id),
   exit: () => exitProject(),
@@ -1676,13 +1768,10 @@ const ACT = {
     if (!confirm(`حذف "${row.name}" وكل بياناته وملفاته نهائياً؟`)) return;
     if (prompt('للتأكيد اكتب اسم المشروع:') !== row.name) return toast('لم يتم الحذف', 'err');
     try {
-      const full = await loadProject(row.id);
-      const paths = full ? full.testCats.flatMap(c => c.records.flatMap(r => r.files.map(f => f.path))) : [];
-      await q(sb.from('projects').delete().eq('id', row.id));
-      for (let i = 0; i < paths.length; i += 100) await removeFiles(paths.slice(i, i + 100));
+      await trashProject(row.id);
       await loadHome();
       render();
-      toast('تم حذف المشروع', 'ok');
+      toast('نُقل المشروع إلى سلة المهملات', 'ok');
     } catch (e) { toast(errMsg(e), 'err'); }
   },
   'del-project': async () => {
@@ -1690,19 +1779,53 @@ const ACT = {
     const p = S.p;
     if (!p || !confirm(`حذف "${p.name}" وكل بياناته وملفاته نهائياً؟`)) return;
     if (prompt('للتأكيد اكتب اسم المشروع:') !== p.name) return toast('لم يتم الحذف', 'err');
-    const paths = p.testCats.flatMap(c => c.records.flatMap(r => r.files.map(f => f.path)));
-    await q(sb.from('projects').delete().eq('id', p.id));
-    for (let i = 0; i < paths.length; i += 100) await removeFiles(paths.slice(i, i + 100));
-    toast('تم حذف المشروع', 'ok');
+    await trashProject(p.id);
+    toast('نُقل المشروع إلى سلة المهملات', 'ok');
     await exitProject();
   },
 
+  'trash-restore': async d => {
+    if (!isOwner()) return;
+    const t = (S.trash || []).find(x => x.id === d.id);
+    if (!t || !confirm(`استعادة "${t.label}"؟`)) return;
+    await restoreTrash(t);
+    await loadHome();
+    render();
+    toast('تمت الاستعادة', 'ok');
+  },
+  'trash-purge': async d => {
+    if (!isOwner()) return;
+    const t = (S.trash || []).find(x => x.id === d.id);
+    if (!t || !confirm(`حذف "${t.label}" نهائياً؟ لا يمكن التراجع.`)) return;
+    await purgeTrash(t);
+    await trashLoad();
+    render();
+    toast('تم الحذف النهائي', 'ok');
+  },
+  'trash-empty': async () => {
+    if (!isOwner() || !(S.trash || []).length || !confirm('إفراغ السلة نهائياً؟ لا يمكن التراجع.')) return;
+    for (const t of [...S.trash]) await purgeTrash(t);
+    await trashLoad();
+    render();
+    toast('تم إفراغ السلة', 'ok');
+  },
+  'period-add': () => { if (need('progress')) openModal('إضافة فترة زمنية', periodForm()); },
+  'period-del': async d => {
+    if (!need('progress')) return;
+    const p = S.p, x = (p.periods || []).find(y => y.id === d.id);
+    if (!x || !confirm(`حذف الفترة "${x.name}"؟ (تُنقل إلى سلة المهملات)`)) return;
+    await trashPut('period', x.name, { item: x }, p.id);
+    p.periods = p.periods.filter(y => y.id !== d.id);
+    logP(p, { kind: 'other', text: `حذف الفترة ${x.name}` });
+    if (await saveDoc()) render();
+  },
   'add-model': () => { if (need('admin')) openModal('إضافة نموذج', modelForm(S.p, null)); },
   'edit-model': d => { if (need('admin')) openModal('تعديل النموذج', modelForm(S.p, getM(S.p, d.m))); },
   'del-model': async d => {
     if (!need('admin')) return;
     const p = S.p, m = getM(p, d.m);
-    if (!m || !confirm(`حذف نموذج "${m.name}" و${m.houses.length} منزل؟`)) return;
+    if (!m || !confirm(`حذف نموذج "${m.name}" و${m.houses.length} منزل؟ (تُنقل إلى سلة المهملات)`)) return;
+    await trashPut('model', m.name, { item: m }, p.id);
     p.models = p.models.filter(x => x.id !== m.id);
     logP(p, { kind: 'other', text: `حذف النموذج ${m.name}` });
     if (S.filter.model === m.id) S.filter.model = 'all';
@@ -1754,7 +1877,8 @@ const ACT = {
     if (!need('admin')) return;
     const p = S.p;
     const b = p.buildings.find(x => x.id === d.id);
-    if (!b || !confirm(`حذف "${b.name}"؟`)) return;
+    if (!b || !confirm(`حذف "${b.name}"؟ (تُنقل إلى سلة المهملات)`)) return;
+    await trashPut('building', b.name, { item: b }, p.id);
     p.buildings = p.buildings.filter(x => x.id !== b.id);
     logP(p, { kind: 'other', text: `حذف ${b.name}` });
     if (await saveDoc()) { closeModal(); render(); }
@@ -1781,8 +1905,8 @@ const ACT = {
     if (!need('tests')) return;
     const p = S.p;
     const c = p.testCats.find(x => x.id === d.c);
-    if (!c || !confirm(`حذف "${c.name}" وكل فحوصاته (${c.records.length}) وملفاتها؟`)) return;
-    const paths = c.records.flatMap(r => r.files.map(f => f.path));
+    if (!c || !confirm(`حذف "${c.name}" وكل فحوصاته (${c.records.length})؟ (تُنقل إلى سلة المهملات مع ملفاتها)`)) return;
+    await trashPut('cat', c.name, { item: { id: c.id, name: c.name }, records: c.records.map(recRowOf(p.id)) }, p.id);
     p.testCats = p.testCats.filter(x => x.id !== c.id);
     p.models.forEach(m => m.stages.forEach(s => { if (s.test === c.id) s.test = ''; }));
     p.buildings.forEach(b => b.stages.forEach(s => { if (s.test === c.id) s.test = ''; }));
@@ -1790,7 +1914,6 @@ const ACT = {
     if (!(await saveDoc())) return;
     S.lastWrite = Date.now();
     await q(sb.from('test_records').delete().eq('project_id', p.id).eq('cat_id', c.id));
-    await removeFiles(paths);
     if (S.tf.cat === c.id) S.tf.cat = 'all';
     openModal('أصناف الفحوصات', catsForm(S.p));
     render();
@@ -1808,41 +1931,21 @@ const ACT = {
     if (!need('tests')) return;
     const p = S.p;
     const { c, r } = findRec(p, d.c, d.id);
-    if (!r || !confirm(`حذف ${c.name} ${toLabel(r.unit)}${r.files.length ? ' مع ' + r.files.length + ' ملف' : ''}؟`)) return;
+    if (!r || !confirm(`حذف ${c.name} ${toLabel(r.unit)}؟ (تُنقل إلى سلة المهملات)`)) return;
     S.lastWrite = Date.now();
+    await trashPut('record', `${c.name} ${toLabel(r.unit)}`, { row: recRowOf(p.id)(r) }, p.id);
     await q(sb.from('test_records').delete().eq('id', r.id));
-    await removeFiles(r.files.map(f => f.path));
     c.records = c.records.filter(x => x.id !== r.id);
     logP(p, { kind: 'other', unitId: r.unitId, text: `حذف ${c.name} ${toLabel(r.unit)}` });
-    await flushLogs();
-    render();
-  },
-  'file-open': async d => {
-    const w = window.open('', '_blank');
-    try {
-      const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(d.path, 600);
-      if (error) throw error;
-      if (w) w.location = data.signedUrl; else window.location.href = data.signedUrl;
-    } catch (e) { if (w) w.close(); toast(errMsg(e), 'err'); }
-  },
-
-  'toggle-visit': async d => {
-    if (!need('visits')) return;
-    const p = S.p;
-    const v = p.visits.find(x => x.id === d.id);
-    if (!v) return;
-    S.lastWrite = Date.now();
-    await q(sb.from('visits').update({ open: !v.open }).eq('id', v.id));
-    v.open = !v.open;
-    logP(p, { kind: 'visit', text: `${v.open ? 'أعاد فتح' : 'أغلق'} متابعة: ${v.notes.slice(0, 60)}` });
     await flushLogs();
     render();
   },
   'del-visit': async d => {
     const p = S.p;
     const v = p.visits.find(x => x.id === d.id);
-    if (!v || !(isAdmin() || v.createdBy === S.user.id) || !confirm('حذف هذه الملاحظة؟')) return;
+    if (!v || !(isAdmin() || v.createdBy === S.user.id) || !confirm('حذف هذه الملاحظة؟ (تُنقل إلى سلة المهملات)')) return;
     S.lastWrite = Date.now();
+    await trashPut('visit', 'ملاحظة: ' + (v.notes || '').slice(0, 50), { row: { id: v.id, project_id: p.id, visit_date: v.date || null, notes: v.notes, open: v.open, by_name: v.by || '', created_by: v.createdBy || null } }, p.id);
     await q(sb.from('visits').delete().eq('id', v.id));
     p.visits = p.visits.filter(x => x.id !== v.id);
     render();
@@ -1963,7 +2066,7 @@ const FORMS = {
       if (n < 1 || n > 500) return toast('أدخل عدد البنايات (1 – 500)', 'err');
       for (let i = 1; i <= n; i++) p.buildings.push({ id: uid(), name: 'بناية ' + i, color: PALETTE[(i - 1) % PALETTE.length], stages: makeStages(p, true), note: '' });
     }
-    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo };
+    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [] };
     const row = await q(sb.from('projects').insert({
       name, type, client: (fd.get('client') || '').trim(), location: (fd.get('location') || '').trim(),
       color: PALETTE[S.projects.length % PALETTE.length], data, updated_by: S.user.id
@@ -2037,6 +2140,8 @@ const FORMS = {
       model.stages.forEach(s => { if (!keep.has(s.id)) model.houses.forEach(h => { delete h.prog[s.id]; }); });
       model.stages = list;
     };
+    const kept = new Set(rows.map(r => r.id).filter(Boolean));
+    for (const s of m.stages.filter(s => !kept.has(s.id))) await trashPut('stage', `${s.name} — ${m.name}`, { ownerId: m.id, item: s }, p.id);
     apply(m, rows.map(r => ({ id: r.id || uid(), name: r.name, test: r.test, w: r.w })));
     const all = fd.get('all') === 'on';
     if (all) {
@@ -2114,6 +2219,17 @@ const FORMS = {
     if (await saveDoc()) { closeModal(); render(); toast(`تم تحديث "${name}" إلى ${val}% في ${n} منزل`, 'ok'); }
   },
 
+  period: async fd => {
+    if (!need('progress')) return;
+    const p = S.p;
+    const name = (fd.get('name') || '').trim();
+    if (!name) return;
+    const from = fd.get('from') || '', to = fd.get('to') || '';
+    if (from && to && to < from) return toast('تاريخ النهاية قبل تاريخ البداية', 'err');
+    p.periods.push({ id: uid(), name, from, to, note: (fd.get('note') || '').trim() });
+    logP(p, { kind: 'other', text: `أضاف فترة: ${name}` });
+    if (await saveDoc()) { closeModal(); render(); }
+  },
   cat: async fd => {
     if (!need('tests')) return;
     const p = S.p;

@@ -221,3 +221,33 @@ create policy ai_msg_insert on public.ai_messages for insert to authenticated
 create policy ai_msg_delete on public.ai_messages for delete to authenticated
   using (user_id = (select auth.uid()));
 revoke update on public.ai_messages from authenticated;
+
+-- ===================== سلة المهملات (للمدير الرئيسي فقط) =====================
+create or replace function public.is_owner_user() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = (select auth.uid()) and is_owner and status = 'active')
+$$;
+revoke execute on function public.is_owner_user() from anon, public;
+grant execute on function public.is_owner_user() to authenticated;
+
+create table if not exists public.trash (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null,
+  project_id uuid,
+  label text not null default '',
+  payload jsonb not null default '{}'::jsonb,
+  deleted_by_name text not null default '',
+  deleted_by uuid default auth.uid() references auth.users(id) on delete set null,
+  deleted_at timestamptz not null default now()
+);
+alter table public.trash enable row level security;
+revoke all on public.trash from anon;
+create policy trash_owner_select on public.trash for select to authenticated using (public.is_owner_user());
+create policy trash_insert on public.trash for insert to authenticated
+  with check (public.is_active() and deleted_by = (select auth.uid()));
+create policy trash_owner_delete on public.trash for delete to authenticated using (public.is_owner_user());
+
+-- استعادة السجلات من السلة: المدير الرئيسي يعيد إدراج سجلات أنشأها غيره
+create policy tests_owner_restore on public.test_records for insert to authenticated with check (public.is_owner_user());
+create policy visits_owner_restore on public.visits for insert to authenticated with check (public.is_owner_user());
+create policy logs_owner_restore on public.logs for insert to authenticated with check (public.is_owner_user());
