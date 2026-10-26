@@ -2339,14 +2339,14 @@ const motionOK = () => !!window.gsap && !(window.matchMedia && matchMedia('(pref
 const _render = render;
 render = function () {
   _render();
-  if (motionOK()) gsap.fromTo('#app .card, #app .tile, #app .lg, #app .pick-card', { opacity: 0, y: 14 },
-    { opacity: 1, y: 0, duration: .45, ease: 'power2.out', stagger: .03, clearProps: 'transform,opacity' });
+  if (motionOK()) gsap.fromTo('#app .card, #app .tile', { opacity: 0 },
+    { opacity: 1, duration: .25, ease: 'power1.out', clearProps: 'opacity' });
 };
 const _openModal = openModal;
 openModal = function (t, h) {
   _openModal(t, h);
-  if (motionOK()) gsap.fromTo('#mbody', { opacity: 0, scale: .94, y: 18 },
-    { opacity: 1, scale: 1, y: 0, duration: .32, ease: 'back.out(1.4)', clearProps: 'transform,opacity' });
+  if (motionOK()) gsap.fromTo('#mbody', { opacity: 0 },
+    { opacity: 1, duration: .2, ease: 'power1.out', clearProps: 'opacity' });
 };
 
 document.addEventListener('click', async e => {
