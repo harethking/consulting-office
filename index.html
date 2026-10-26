@@ -249,6 +249,26 @@ button:active{transform:scale(.98)}
 .bar i{background-image:linear-gradient(90deg,rgba(255,255,255,0) 0,rgba(255,255,255,.35) 50%,rgba(255,255,255,0) 100%);background-size:200% 100%;animation:shine 2.8s linear infinite}
 @keyframes shine{from{background-position:200% 0}to{background-position:-200% 0}}
 @media (prefers-reduced-motion: reduce){.bar i{animation:none}.tile:hover,.pick-card:hover{transform:none}}
+
+/* ===== تصميم قوي ===== */
+body{background:radial-gradient(1200px 600px at 10% -10%,#dbeafe 0%,transparent 60%),radial-gradient(900px 500px at 100% 0%,#fde68a55 0%,transparent 60%),var(--surface)}
+.ohead{padding:26px 28px;min-height:120px;position:relative;overflow:hidden;background:linear-gradient(115deg,#071a2e,#0b2540 35%,#13365c 70%,#1d4f86);background-size:200% 200%;animation:gradmove 14s ease infinite}
+.ohead::after{content:"";position:absolute;inset:auto -10% -40% auto;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.35),transparent 65%);pointer-events:none}
+.ohead b{font-size:22px;letter-spacing:.3px;color:#fff}
+.ohead .small{font-size:14px;opacity:.9}
+@keyframes gradmove{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.card{border-radius:18px;padding:20px;border:1px solid #dfe7f2;box-shadow:0 2px 4px rgba(11,37,64,.05),0 18px 40px -22px rgba(11,37,64,.35)}
+.card h3{font-size:18px;color:#0b2540}
+.tile{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease;border-radius:18px}
+.tile:hover,.pick-card:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 24px 44px -18px rgba(11,37,64,.45)}
+.tile b{font-size:30px;color:#0b2540}
+.pick-card{border-radius:18px;border-top-width:8px}
+.primary{padding:10px 20px;font-weight:600;background:linear-gradient(135deg,#c9a227,#e2b93b 45%,#13365c 100%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.2);box-shadow:0 10px 22px -10px rgba(201,162,39,.8)}
+.nav button.on,.ohead .ghost.on{box-shadow:0 0 0 2px #c9a227 inset}
+.bar{height:14px;border-radius:99px;background:#e2e8f0}
+.bar i{border-radius:99px}
+.barlbl b{font-size:15px;color:#0b2540}
+@media (prefers-reduced-motion: reduce){.ohead,.ohead::after{animation:none}.tile:hover,.pick-card:hover{transform:none}}
 </style>
 </head>
 <body>
@@ -2358,15 +2378,15 @@ const _render = render;
 render = function () {
   _render();
   if (!motionOK()) return;
-  gsap.fromTo('#app .ohead, #app .side', { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: .4, ease: 'power2.out', clearProps: 'transform,opacity' });
-  gsap.fromTo('#app .card, #app .tile, #app .lg, #app .pick-card', { opacity: 0, y: 10 },
-    { opacity: 1, y: 0, duration: .4, ease: 'power2.out', stagger: .03, clearProps: 'transform,opacity' });
+  gsap.fromTo('#app .ohead, #app .side', { opacity: 0, y: -28, scale: .98 }, { opacity: 1, y: 0, scale: 1, duration: .7, ease: 'expo.out', clearProps: 'transform,opacity' });
+  gsap.fromTo('#app .card, #app .tile, #app .lg, #app .pick-card', { opacity: 0, y: 40, filter: 'blur(6px)' },
+    { opacity: 1, y: 0, filter: 'blur(0px)', duration: .7, ease: 'expo.out', stagger: .07, delay: .15, clearProps: 'transform,opacity,filter' });
   gsap.from('#app .bar i', { width: 0, duration: .9, ease: 'power2.out', stagger: .04 });
   document.querySelectorAll('#app .tile b').forEach(el => {
     const t = el.textContent.trim();
     if (!/^\d+(\.\d+)?$/.test(t)) return;
     const o = { v: 0 };
-    gsap.to(o, { v: +t, duration: 1, ease: 'power1.out', onUpdate: () => { el.textContent = Math.round(o.v); }, onComplete: () => { el.textContent = t; } });
+    gsap.to(o, { v: +t, duration: 1.4, ease: 'expo.out', onUpdate: () => { el.textContent = Math.round(o.v); }, onComplete: () => { el.textContent = t; } });
   });
 };
 const _openModal = openModal;
