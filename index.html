@@ -2339,14 +2339,17 @@ const motionOK = () => !!window.gsap && !(window.matchMedia && matchMedia('(pref
 const _render = render;
 render = function () {
   _render();
-  if (motionOK()) gsap.fromTo('#app .card, #app .tile', { opacity: 0 },
-    { opacity: 1, duration: .25, ease: 'power1.out', clearProps: 'opacity' });
+  if (!motionOK()) return;
+  gsap.fromTo('#app .ohead, #app .side', { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: .4, ease: 'power2.out', clearProps: 'transform,opacity' });
+  gsap.fromTo('#app .card, #app .tile, #app .lg, #app .pick-card', { opacity: 0, y: 10 },
+    { opacity: 1, y: 0, duration: .4, ease: 'power2.out', stagger: .03, clearProps: 'transform,opacity' });
+  gsap.from('#app .bar i', { width: 0, duration: .9, ease: 'power2.out', stagger: .04 });
 };
 const _openModal = openModal;
 openModal = function (t, h) {
   _openModal(t, h);
-  if (motionOK()) gsap.fromTo('#mbody', { opacity: 0 },
-    { opacity: 1, duration: .2, ease: 'power1.out', clearProps: 'opacity' });
+  if (motionOK()) gsap.fromTo('#mbody', { opacity: 0, y: 10 },
+    { opacity: 1, y: 0, duration: .3, ease: 'power2.out', clearProps: 'transform,opacity' });
 };
 
 document.addEventListener('click', async e => {
