@@ -339,6 +339,8 @@ const fext = n => { const m = String(n).match(/\.([a-z0-9]{1,6})$/i); return m ?
 
 const PALETTE = ['#0284c7', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5', '#0d9488', '#a16207'];
 const TYPE_LABEL = { complex: 'مجمع سكني', gov: 'مشروع عام حكومي', invest: 'استثمار' };
+const KIND_LABEL = { commercial: 'تجاري', health: 'صحي', industrial: 'صناعي', other: 'أخرى' };
+const projLabel = x => (x && x.kind && KIND_LABEL[x.kind]) || projLabel(x);
 const STATUS = { pending: 'قيد الفحص', pass: 'ناجح', fail: 'راسب' };
 const ROLES = { admin: 'مدير', staff: 'موظف', contractor: 'مهندس الشركة المنفذة' };
 const ROLE_DESC = {
@@ -515,7 +517,7 @@ async function logout() {
 
 async function loadHome() {
   const [projects, office] = await Promise.all([
-    q(sb.from('projects').select('id,name,type,client,location,color,progress').order('created_at')),
+    q(sb.from('projects').select('id,name,type,client,location,color,progress,kind:data->>kind').order('created_at')),
     q(sb.from('office').select('*').eq('id', 1).maybeSingle())
   ]);
   S.projects = projects || [];
@@ -575,7 +577,7 @@ async function reloadProject(quiet) {
 /* حفظ بنية المشروع (النماذج والمنازل والفقرات والأصناف) مع منع الكتابة فوق تعديلات غيرك */
 async function saveDoc() {
   const p = S.p;
-  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [] };
+  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null };
   S.lastWrite = Date.now();
   setSync(true);
   const { data: rows, error } = await sb.from('projects')
@@ -807,7 +809,7 @@ function viewHome() {
   const pend = S.users.filter(u => u.status === 'pending').length;
   const cards = S.projects.map(p => `<div class="pick-card" style="--c:${esc(p.color)}" data-act="enter" data-id="${p.id}">
       <div class="row"><div class="ficon" style="--c:${esc(p.color)}">${icon(p.type === 'complex' ? 'home' : 'bld', '#fff')}</div>
-        <div class="grow"><b style="font-size:16px">${esc(p.name)}</b><div class="small muted">${TYPE_LABEL[p.type]}</div></div></div>
+        <div class="grow"><b style="font-size:16px">${esc(p.name)}</b><div class="small muted">${projLabel(p)}</div></div></div>
       <div class="small muted" style="margin-top:10px">${esc(p.client || '—')}${p.location ? ' · ' + esc(p.location) : ''}</div>
       <div style="margin-top:12px">${bar(p.progress || 0, p.color, 'الإنجاز الكلي')}</div>
       <div style="margin-top:12px;display:flex;gap:8px;align-items:center"><span class="badge">دخول إلى المشروع ←</span><span class="grow"></span>${isAdmin() ? `<button type="button" class="danger sm" data-act="del-home" data-id="${p.id}">حذف المشروع</button>` : ''}</div>
@@ -879,7 +881,7 @@ function projectLayout(p, title, body) {
   const nav = SECTIONS(p).map(([k, l, ic]) => `<button type="button" class="${S.view === k ? 'on' : ''}" data-act="section" data-view="${k}">${icon(ic)}<span>${l}</span></button>`).join('');
   return `<div class="shell"><aside class="side">
       <div class="brand"><div class="logo">م</div><div><b>${esc(S.office.name || 'المكتب الاستشاري')}</b><div class="small" style="color:#e0f2fe">نظام الإدارة</div></div></div>
-      <div class="projbox"><div class="row" style="gap:8px"><span class="dot" style="background:${esc(p.color)};box-shadow:0 0 0 2px #fff"></span><b>${esc(p.name)}</b></div><div class="small" style="color:#e0f2fe">${TYPE_LABEL[p.type]}</div></div>
+      <div class="projbox"><div class="row" style="gap:8px"><span class="dot" style="background:${esc(p.color)};box-shadow:0 0 0 2px #fff"></span><b>${esc(p.name)}</b></div><div class="small" style="color:#e0f2fe">${projLabel(p)}</div></div>
       <nav class="nav">${nav}</nav>
       <div class="me">
         <div class="row" style="gap:10px"><div class="av" style="background:${ROLE_COLOR[S.user.role]}">${esc(S.user.name.trim().charAt(0))}</div>
@@ -907,7 +909,7 @@ function viewPDash(p) {
       + units(p).filter(u => u.building).map(u => `<div class="lg" style="--c:${u.color}"><span class="sw"></span><div class="grow"><b>${esc(u.label)}</b>${bar(unitPct(u), u.color)}</div></div>`).join('')
     : us.map(u => `<div class="lg" style="--c:${u.color}"><span class="sw"></span><div class="grow"><b>${esc(u.label)}</b>${bar(unitPct(u), u.color)}</div></div>`).join('');
   return `<div class="phead" style="--c:${esc(p.color)}">
-      <div class="row"><div><h2>${esc(p.name)}</h2><div class="small" style="opacity:.9">${TYPE_LABEL[p.type]}${p.client ? ' · ' + esc(p.client) : ''}${p.location ? ' · ' + esc(p.location) : ''}</div></div>
+      <div class="row"><div><h2>${esc(p.name)}</h2><div class="small" style="opacity:.9">${projLabel(p)}${p.client ? ' · ' + esc(p.client) : ''}${p.location ? ' · ' + esc(p.location) : ''}</div></div>
         <span class="grow"></span>
         ${isAdmin() ? `<button type="button" class="ghost sm" data-act="edit-project">تعديل</button><button type="button" class="danger sm" data-act="del-project">حذف المشروع</button>` : ''}
       </div>
@@ -1158,17 +1160,20 @@ function render() {
 
 /* ================= نماذج الإدخال ================= */
 function typePicker() {
-  const opt = (t, c, ic, d) => `<button type="button" class="pick" data-act="pick-type" data-type="${t}"><div class="ficon" style="--c:${c}">${icon(ic, '#fff')}</div><div><b>${TYPE_LABEL[t]}</b><div class="muted small">${d}</div></div></button>`;
+  const opt = (t, c, ic, d, kind) => `<button type="button" class="pick" data-act="pick-type" data-type="${t}" data-kind="${kind || ''}"><div class="ficon" style="--c:${c}">${icon(ic, '#fff')}</div><div><b>${kind ? KIND_LABEL[kind] : TYPE_LABEL[t]}</b><div class="muted small">${d}</div></div></button>`;
   return `<div class="stack">
     ${opt('complex', '#0284c7', 'home', 'عدة نماذج منازل بمساحات مختلفة، كل نموذج بلون، ومتابعة كل منزل')}
-    ${opt('gov', '#16a34a', 'bld', 'عدد البنايات، ولكل بناية فقراتها ونسبة إنجازها')}
-    ${opt('invest', '#ea580c', 'bld', 'عدد البنايات، ولكل بناية فقراتها ونسبة إنجازها')}</div>`;
+    ${opt('gov', '#7c3aed', 'grid', 'عدد البنايات أو الوحدات التجارية، ولكل بناية فقراتها ونسبة إنجازها', 'commercial')}
+    ${opt('gov', '#dc2626', 'act', 'عدد المباني أو الأقسام الصحية، ولكل مبنى فقراته ونسبة إنجازه', 'health')}
+    ${opt('gov', '#16a34a', 'bld', 'عدد المنشآت الصناعية أو الورش، ولكل منشأة فقراتها ونسبة إنجازها', 'industrial')}
+    ${opt('gov', '#64748b', 'note', 'أي نوع آخر من المشاريع، ولكل وحدة فقراتها ونسبة إنجازها', 'other')}
+  </div>`;
 }
-
-function projectForm(type) {
+function projectForm(type, kind) {
   const isC = type === 'complex';
   return `<form data-form="project" class="stack">
     <input type="hidden" name="type" value="${type}">
+    <input type="hidden" name="kind" value="${kind || ''}">
     <label>اسم المشروع<input name="name" required></label>
     <div class="grid2"><label>الجهة / المالك<input name="client"></label><label>الموقع<input name="location"></label></div>
     ${isC ? `
@@ -1411,7 +1416,7 @@ function aiLocal(qs, p) {
 
 function aiContext(p) {
   const L = [`التاريخ اليوم: ${dkey(Date.now())}`, `المستخدم: ${S.user.name} (${ROLES[S.user.role]})`,
-    `## المشروع: ${p.name} | النوع: ${TYPE_LABEL[p.type]} | الجهة: ${p.client || '-'} | الموقع: ${p.location || '-'} | الإنجاز الكلي: ${projectPct(p)}%`];
+    `## المشروع: ${p.name} | النوع: ${projLabel(p)} | الجهة: ${p.client || '-'} | الموقع: ${p.location || '-'} | الإنجاز الكلي: ${projectPct(p)}%`];
   if (p.type === 'complex') {
     p.models.forEach(m => {
       L.push(`نموذج "${m.name}" | مساحة ${m.area || '-'} م² | ${m.houses.length} منزل (أرقام ${nosRange(m)}) | إنجاز ${modelPct(m)}% | الفقرات بالترتيب: ${m.stages.map(s => s.name + (s.test ? ' [تتطلب ' + catName(p, s.test) + ']' : '')).join('، ')}`);
@@ -1479,7 +1484,7 @@ async function aiContextAll() {
     const tests = p.testCats.flatMap(c => c.records);
     const fails = tests.filter(r => r.status === 'fail').length;
     const open = p.visits.filter(v => v.open).length;
-    L.push(`\n## المشروع: ${p.name} | النوع: ${TYPE_LABEL[p.type]} | الجهة: ${p.client || '-'} | الموقع: ${p.location || '-'} | الإنجاز الكلي: ${projectPct(p)}%`);
+    L.push(`\n## المشروع: ${p.name} | النوع: ${projLabel(p)} | الجهة: ${p.client || '-'} | الموقع: ${p.location || '-'} | الإنجاز الكلي: ${projectPct(p)}%`);
     if (p.type === 'complex') {
       p.models.forEach(m => L.push(`- نموذج "${m.name}": ${m.houses.length} منزل | إنجاز ${modelPct(m)}%`));
     } else {
@@ -1496,7 +1501,7 @@ async function aiContextAll() {
 function aiLocalAll() {
   if (!S.projects.length) return 'لا توجد مشاريع مسجلة بعد.';
   const sorted = S.projects.slice().sort((a, b) => (a.progress || 0) - (b.progress || 0));
-  return ['**ملخص إنجاز المشاريع**', ...sorted.map(x => `- ${x.name} (${TYPE_LABEL[x.type]}): ${x.progress || 0}%`), '', 'للتحليل التفصيلي (الفحوصات والفقرات الناقصة) فعّل مفتاح Gemini من الإعدادات.'].join('\n');
+  return ['**ملخص إنجاز المشاريع**', ...sorted.map(x => `- ${x.name} (${projLabel(x)}): ${x.progress || 0}%`), '', 'للتحليل التفصيلي (الفحوصات والفقرات الناقصة) فعّل مفتاح Gemini من الإعدادات.'].join('\n');
 }
 
 function md(s) {
@@ -1788,7 +1793,7 @@ const ACT = {
   },
 
   'new-project': () => { if (need('admin')) openModal('إضافة مشروع', typePicker()); },
-  'pick-type': d => openModal('مشروع جديد — ' + TYPE_LABEL[d.type], projectForm(d.type)),
+  'pick-type': d => openModal('مشروع جديد — ' + (KIND_LABEL[d.kind] || TYPE_LABEL[d.type]), projectForm(d.type, d.kind)),
   'fill-example': () => {
     const f = $('#mbody form');
     const nm = f.querySelector('[name=name]');
@@ -2077,9 +2082,10 @@ const FORMS = {
   project: async fd => {
     if (!need('admin')) return;
     const type = fd.get('type');
+    const kind = fd.get('kind') || '';
     const name = (fd.get('name') || '').trim();
     if (!name) return toast('اكتب اسم المشروع', 'err');
-    const p = { type, models: [], buildings: [], nextNo: 1, testCats: DEFAULT_CATS.map(n => ({ id: uid(), name: n, records: [] })) };
+    const p = { type, kind: kind || null, models: [], buildings: [], nextNo: 1, testCats: DEFAULT_CATS.map(n => ({ id: uid(), name: n, records: [] })) };
     if (type === 'complex') {
       const total = +fd.get('total') || 0;
       const names = fd.getAll('mname'), counts = fd.getAll('mcount'), areas = fd.getAll('marea');
@@ -2105,12 +2111,12 @@ const FORMS = {
       if (n < 1 || n > 500) return toast('أدخل عدد البنايات (1 – 500)', 'err');
       for (let i = 1; i <= n; i++) p.buildings.push({ id: uid(), name: 'بناية ' + i, color: PALETTE[(i - 1) % PALETTE.length], stages: makeStages(p, true), note: '' });
     }
-    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [] };
+    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null };
     const row = await q(sb.from('projects').insert({
       name, type, client: (fd.get('client') || '').trim(), location: (fd.get('location') || '').trim(),
       color: PALETTE[S.projects.length % PALETTE.length], data, updated_by: S.user.id
     }).select('id').single());
-    S.pendingLogs.push({ pid: row.id, t: Date.now(), by: S.user.name, role: S.user.role, kind: 'other', text: `أنشأ المشروع ${name} (${TYPE_LABEL[type]})` });
+    S.pendingLogs.push({ pid: row.id, t: Date.now(), by: S.user.name, role: S.user.role, kind: 'other', text: `أنشأ المشروع ${name} (${projLabel({ type, kind })})` });
     await flushLogs();
     await enterProject(row.id);
     S.view = 'site';
