@@ -269,6 +269,20 @@ body{background:radial-gradient(1200px 600px at 10% -10%,#dbeafe 0%,transparent 
 .bar i{border-radius:99px}
 .barlbl b{font-size:15px;color:#0b2540}
 @media (prefers-reduced-motion: reduce){.ohead,.ohead::after{animation:none}.tile:hover,.pick-card:hover{transform:none}}
+
+/* ===== موقف المشروع: جدول وطباعة ===== */
+.sheet-title{font-size:20px;font-weight:700;text-decoration:underline;margin:4px 0 14px;color:#0b2540}
+table.sheet{width:100%;border-collapse:collapse;font-size:14px}
+table.sheet th,table.sheet td{border:1px solid #1f2937;padding:8px 10px;vertical-align:middle}
+table.sheet th{width:42%;background:#5b8fd0;color:#0b1f3a;font-weight:600;text-align:right}
+table.sheet td{background:#fff;text-align:center}
+@media print{
+  @page{size:A4;margin:10mm}
+  body{background:#fff}
+  body *{visibility:hidden}
+  #statusSheet,#statusSheet *{visibility:visible}
+  #statusSheet{position:absolute;top:0;left:0;right:0;box-shadow:none;border:none;margin:0;padding:0}
+}
 </style>
 </head>
 <body>
@@ -340,7 +354,7 @@ const fext = n => { const m = String(n).match(/\.([a-z0-9]{1,6})$/i); return m ?
 const PALETTE = ['#0284c7', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5', '#0d9488', '#a16207'];
 const TYPE_LABEL = { complex: 'مجمع سكني', gov: 'مشروع عام حكومي', invest: 'استثمار' };
 const KIND_LABEL = { commercial: 'تجاري', health: 'صحي', industrial: 'صناعي', other: 'أخرى' };
-const projLabel = x => (x && x.kind && KIND_LABEL[x.kind]) || projLabel(x);
+const projLabel = x => (x && x.kind && KIND_LABEL[x.kind]) || TYPE_LABEL[x.type];
 const STATUS = { pending: 'قيد الفحص', pass: 'ناجح', fail: 'راسب' };
 const ROLES = { admin: 'مدير', staff: 'موظف', contractor: 'مهندس الشركة المنفذة' };
 const ROLE_DESC = {
@@ -529,7 +543,7 @@ async function loadHome() {
 /* ================= تحميل المشروع وحفظه ================= */
 function normProject(p) {
   p.models = p.models || []; p.buildings = p.buildings || []; p.testCats = p.testCats || [];
-  p.visits = p.visits || []; p.log = p.log || []; p.nextNo = p.nextNo || 1; p.periods = p.periods || [];
+  p.visits = p.visits || []; p.log = p.log || []; p.nextNo = p.nextNo || 1; p.periods = p.periods || []; p.status = p.status || {};
   p.testCats.forEach(c => { c.records = c.records || []; });
   p.models.forEach(m => { m.stages = m.stages || []; m.houses = m.houses || []; m.houses.forEach(h => { h.prog = h.prog || {}; }); });
   p.buildings.forEach(b => { b.stages = b.stages || []; });
@@ -577,7 +591,7 @@ async function reloadProject(quiet) {
 /* حفظ بنية المشروع (النماذج والمنازل والفقرات والأصناف) مع منع الكتابة فوق تعديلات غيرك */
 async function saveDoc() {
   const p = S.p;
-  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null };
+  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null, status: p.status || {} };
   S.lastWrite = Date.now();
   setSync(true);
   const { data: rows, error } = await sb.from('projects')
@@ -874,6 +888,7 @@ const SECTIONS = p => [
   ['site', p.type === 'complex' ? 'سايت المجمع' : 'سايت المشروع', 'grid'],
   ['tests', 'الفحوصات', 'flask'],
   ['visits', 'الزيارات والملاحظات', 'note'],
+  ['status', 'موقف المشروع', 'out'],
   ['log', 'سجل المشروع', 'act']
 ];
 
@@ -1154,7 +1169,7 @@ function render() {
   }
   const sec = SECTIONS(p).find(x => x[0] === S.view) || SECTIONS(p)[0];
   S.view = sec[0];
-  const views = { dash: viewPDash, site: viewSite, tests: viewTests, visits: viewVisits, log: x => `<div class="card">${logList(x.log.slice(-300).reverse())}</div>` };
+  const views = { status: viewStatus, dash: viewPDash, site: viewSite, tests: viewTests, visits: viewVisits, log: x => `<div class="card">${logList(x.log.slice(-300).reverse())}</div>` };
   app.innerHTML = projectLayout(p, sec[1], views[S.view](p));
 }
 
@@ -1759,6 +1774,43 @@ function periodForm() {
     <label>ملاحظة<input name="note"></label><div><button class="primary">إضافة</button></div></form>`;
 }
 
+/* ================= موقف المشروع (جدول قابل للطباعة و PDF) ================= */
+const STATUS_FIELDS = [
+  ['sector', 'القطاع'], ['permitNo', 'رقم الاجازة'], ['permitDate', 'تاريخ منح الاجازة', 'date'],
+  ['cost', 'كلفة المشروع بالدولار الأمريكي'], ['area', 'مساحة المشروع'], ['landOwner', 'عائدية الارض'],
+  ['investYears', 'مدة استثمار المشروع (سنة)'], ['buildMonths', 'مدة انجاز المشروع (شهر)'],
+  ['startDate', 'تاريخ المباشرة بتنفيذ المشروع', 'date'], ['office', 'المكتب الاستشاري'],
+  ['expiry', 'تاريخ نفاذ الاجازة', 'date'], ['ownerShare', 'حصة الجهة المالكة'], ['approval', 'مصادقة المخططات']
+];
+function statusRows(p) {
+  const s = p.status || {};
+  return [
+    ['القطاع', s.sector], ['رقم الاجازة', s.permitNo], ['تاريخ منح الاجازة', s.permitDate],
+    ['اسم المشروع', p.name], ['اسم الشركة المستثمرة', p.client], ['كلفة المشروع بالدولار الأمريكي', s.cost],
+    ['موقع المشروع', p.location], ['مساحة المشروع', s.area], ['عائدية الارض', s.landOwner],
+    ['مدة استثمار المشروع (سنة)', s.investYears], ['مدة انجاز المشروع (شهر)', s.buildMonths],
+    ['تاريخ المباشرة بتنفيذ المشروع', s.startDate], ['نسبة الإنجاز %', fmtP(projectPct(p)) + '%'],
+    ['المكتب الاستشاري', s.office], ['تاريخ نفاذ الاجازة', s.expiry],
+    ['موقف المشاريع الإدارية والقانونية', s.admin], ['حصة الجهة المالكة', s.ownerShare], ['مصادقة المخططات', s.approval]
+  ];
+}
+function viewStatus(p) {
+  const rows = statusRows(p).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v ? esc(v) : '—'}</td></tr>`).join('');
+  return `<div class="card"><div class="row"><h3>موقف المشروع</h3><span class="grow"></span>
+      ${isAdmin() ? '<button type="button" class="ghost sm" data-act="status-edit">تعديل البيانات</button>' : ''}
+      <button type="button" class="primary sm" data-act="status-print">طباعة / حفظ PDF</button></div>
+    <div class="small muted" style="margin-top:6px">لحفظ PDF اختر "حفظ كـ PDF" من نافذة الطباعة.</div></div>
+    <div class="card" id="statusSheet"><div class="sheet-title">موقف المشاريع الاستثمارية</div><table class="sheet"><tbody>${rows}</tbody></table></div>`;
+}
+function statusForm(p) {
+  const s = p.status || {};
+  const inputs = STATUS_FIELDS.map(([k, l, t]) => `<label>${l}<input name="${k}" value="${esc(s[k] || '')}"${t === 'date' ? ' type="date"' : ''}></label>`).join('');
+  return `<form data-form="status" class="stack"><div class="grid2">${inputs}</div>
+    <label>موقف المشاريع الإدارية والقانونية<textarea name="admin" rows="2">${esc(s.admin || '')}</textarea></label>
+    <div class="small muted">الاسم والجهة والموقع ونسبة الإنجاز تُؤخذ تلقائياً من بيانات المشروع.</div>
+    <div><button class="primary">حفظ</button></div></form>`;
+}
+
 const ACT = {
   close: () => closeModal(),
   menu: () => document.body.classList.toggle('sideopen'),
@@ -1863,6 +1915,8 @@ const ACT = {
     logP(p, { kind: 'other', text: `حذف الفترة ${x.name}` });
     if (await saveDoc()) render();
   },
+  'status-edit': () => { if (need('admin')) openModal('تعديل موقف المشروع', statusForm(S.p)); },
+  'status-print': () => window.print(),
   'add-model': () => { if (need('admin')) openModal('إضافة نموذج', modelForm(S.p, null)); },
   'edit-model': d => { if (need('admin')) openModal('تعديل النموذج', modelForm(S.p, getM(S.p, d.m))); },
   'del-model': async d => {
@@ -2111,7 +2165,7 @@ const FORMS = {
       if (n < 1 || n > 500) return toast('أدخل عدد البنايات (1 – 500)', 'err');
       for (let i = 1; i <= n; i++) p.buildings.push({ id: uid(), name: 'بناية ' + i, color: PALETTE[(i - 1) % PALETTE.length], stages: makeStages(p, true), note: '' });
     }
-    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null };
+    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null, status: p.status || {} };
     const row = await q(sb.from('projects').insert({
       name, type, client: (fd.get('client') || '').trim(), location: (fd.get('location') || '').trim(),
       color: PALETTE[S.projects.length % PALETTE.length], data, updated_by: S.user.id
@@ -2264,6 +2318,15 @@ const FORMS = {
     if (await saveDoc()) { closeModal(); render(); toast(`تم تحديث "${name}" إلى ${val}% في ${n} منزل`, 'ok'); }
   },
 
+  status: async fd => {
+    if (!need('admin')) return;
+    const p = S.p;
+    p.status = {};
+    STATUS_FIELDS.forEach(([k]) => { p.status[k] = (fd.get(k) || '').trim(); });
+    p.status.admin = (fd.get('admin') || '').trim();
+    logP(p, { kind: 'other', text: 'حدّث موقف المشروع' });
+    if (await saveDoc()) { closeModal(); render(); }
+  },
   period: async fd => {
     if (!need('progress')) return;
     const p = S.p;
