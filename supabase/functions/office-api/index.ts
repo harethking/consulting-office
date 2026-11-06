@@ -33,7 +33,10 @@ const AI_SYSTEM_ALL = `أنت "المهندس الذكي" في نظام مكتب
 - عند المقارنة بين المشاريع اذكر اسم كل مشروع ونسبته، ورتّبها عند الحاجة.
 - أجب بالعربية بأسلوب مهني موجز، وافهم اللهجة العراقية. استخدم **للعناوين** والشرطة - للقوائم، بدون جداول.`;
 
-type Profile = { id: string; role: string; status: string; is_owner: boolean; name: string };
+type Profile = { id: string; role: string; status: string; is_owner: boolean; name: string; office_id?: number };
+const officeOf = (p: { office_id?: number | null }) => Number(p.office_id || 1);
+// مكتب 1 يحتفظ بأسماء المفاتيح القديمة، وبقية المكاتب لكل منها مفتاح خاص
+const secretName = (base: string, office: number) => (office === 1 ? base : `${base}:${office}`);
 
 async function caller(req: Request): Promise<Profile | null> {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -44,11 +47,12 @@ async function caller(req: Request): Promise<Profile | null> {
   return p && p.status === "active" ? (p as Profile) : null;
 }
 
-async function getSecrets() {
-  const { data } = await admin.from("app_secrets").select("k,v").in("k", ["gemini_key", "gemini_model"]);
+async function getSecrets(office: number) {
+  const kKey = secretName("gemini_key", office), kModel = secretName("gemini_model", office);
+  const { data } = await admin.from("app_secrets").select("k,v").in("k", [kKey, kModel]);
   const m: Record<string, string> = {};
   (data || []).forEach((r: { k: string; v: string }) => { m[r.k] = r.v; });
-  return { key: m.gemini_key || "", model: m.gemini_model || DEFAULT_MODEL };
+  return { key: m[kKey] || "", model: m[kModel] || DEFAULT_MODEL };
 }
 
 async function register(b: Record<string, unknown>) {
@@ -61,8 +65,12 @@ async function register(b: Record<string, unknown>) {
   if (!/^[a-z0-9._-]{3,30}$/.test(username)) return json({ error: "اسم المستخدم من 3 إلى 30 حرفاً إنكليزياً أو أرقاماً (بدون مسافات)" }, 400);
   if (password.length < 6) return json({ error: "كلمة المرور 6 أحرف على الأقل" }, 400);
   if (!ROLES.includes(role)) role = "staff";
+  const office = Math.max(1, parseInt(String(b.office || 1), 10) || 1);
+  const { data: off } = await admin.from("office").select("id").eq("id", office).maybeSingle();
+  if (!off) return json({ error: "المكتب غير موجود" }, 400);
 
-  const { count } = await admin.from("profiles").select("id", { count: "exact", head: true });
+  // أول حساب في كل مكتب يصبح المدير الرئيسي لذلك المكتب
+  const { count } = await admin.from("profiles").select("id", { count: "exact", head: true }).eq("office_id", office);
   const first = (count || 0) === 0;
   const { data: exists } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
   if (exists) return json({ error: "اسم المستخدم مستخدم سابقاً" }, 409);
@@ -75,7 +83,7 @@ async function register(b: Record<string, unknown>) {
     return json({ error: /already|registered|exists/i.test(msg) ? "اسم المستخدم مستخدم سابقاً" : msg }, 400);
   }
   const { error: pe } = await admin.from("profiles").insert({
-    id: cu.user.id, username, name, company,
+    id: cu.user.id, username, name, company, office_id: office,
     role: first ? "admin" : role, status: first ? "active" : "pending", is_owner: first,
   });
   if (pe) {
@@ -85,8 +93,8 @@ async function register(b: Record<string, unknown>) {
   return json({ ok: true, first });
 }
 
-async function ai(b: Record<string, unknown>) {
-  const { key, model } = await getSecrets();
+async function ai(b: Record<string, unknown>, me: Profile) {
+  const { key, model } = await getSecrets(officeOf(me));
   if (!key) return json({ error: "المهندس الذكي غير مفعّل" }, 400);
   const question = String(b.question || "").slice(0, 4000);
   const context = String(b.context || "").slice(0, 250000);
@@ -131,13 +139,13 @@ Deno.serve(async (req: Request) => {
     const me = await caller(req);
     if (!me) return json({ error: "غير مصرح" }, 401);
 
-    if (b.action === "ai") return await ai(b);
+    if (b.action === "ai") return await ai(b, me);
 
     if (b.action === "delete-user") {
       if (me.role !== "admin") return json({ error: "للمدير فقط" }, 403);
       const id = String(b.id || "");
-      const { data: t } = await admin.from("profiles").select("id,is_owner").eq("id", id).maybeSingle();
-      if (!t || t.is_owner || t.id === me.id) return json({ error: "لا يمكن حذف هذا الحساب" }, 400);
+      const { data: t } = await admin.from("profiles").select("id,is_owner,office_id").eq("id", id).maybeSingle();
+      if (!t || t.is_owner || t.id === me.id || officeOf(t) !== officeOf(me)) return json({ error: "لا يمكن حذف هذا الحساب" }, 400);
       const { error } = await admin.auth.admin.deleteUser(id);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
@@ -146,21 +154,22 @@ Deno.serve(async (req: Request) => {
     // مفتاح Gemini: للمالك (المدير الرئيسي) فقط، ولا يُعاد المفتاح أبداً إلى المتصفح
     if (b.action === "ai-status") {
       if (!me.is_owner) return json({ error: "للمدير الرئيسي فقط" }, 403);
-      const s = await getSecrets();
+      const s = await getSecrets(officeOf(me));
       return json({ enabled: !!s.key, model: s.model });
     }
     if (b.action === "ai-key") {
+      const office = officeOf(me);
       if (!me.is_owner) return json({ error: "للمدير الرئيسي فقط" }, 403);
       const key = String(b.key || "").trim();
       const model = String(b.model || "").trim().replace(/^models\//, "");
-      if (b.clear) await admin.from("app_secrets").delete().eq("k", "gemini_key");
-      else if (key) await admin.from("app_secrets").upsert({ k: "gemini_key", v: key, updated_at: new Date().toISOString() });
+      if (b.clear) await admin.from("app_secrets").delete().eq("k", secretName("gemini_key", office));
+      else if (key) await admin.from("app_secrets").upsert({ k: secretName("gemini_key", office), v: key, updated_at: new Date().toISOString() });
       if (model) {
         if (!/^[a-zA-Z0-9._-]{3,80}$/.test(model)) return json({ error: "اسم النموذج غير صالح" }, 400);
-        await admin.from("app_secrets").upsert({ k: "gemini_model", v: model, updated_at: new Date().toISOString() });
+        await admin.from("app_secrets").upsert({ k: secretName("gemini_model", office), v: model, updated_at: new Date().toISOString() });
       }
-      const s = await getSecrets();
-      await admin.from("office").update({ ai_enabled: !!s.key }).eq("id", 1);
+      const s = await getSecrets(office);
+      await admin.from("office").update({ ai_enabled: !!s.key }).eq("id", office);
       return json({ enabled: !!s.key, model: s.model });
     }
 
