@@ -658,7 +658,7 @@ async function reloadProject(quiet) {
 /* حفظ بنية المشروع (النماذج والمنازل والفقرات والأصناف) مع منع الكتابة فوق تعديلات غيرك */
 async function saveDoc() {
   const p = S.p;
-  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null, status: p.status || {} };
+  const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null, status: p.status || {}, adl: p.adl || null };
   S.lastWrite = Date.now();
   setSync(true);
   const { data: rows, error } = await sb.from('projects')
@@ -752,7 +752,15 @@ function units(p) {
   return out;
 }
 const unitPct = u => wavg(u.stages, s => s.pct, wt);
-const projectPct = p => +wavgX(units(p), u => wavgX(u.stages, s => s.pct, wt), wt).toFixed(2);
+const projectPct = p => {
+  if (p.adl && p.type === 'complex') { // نفس calcProjectProgress في نظام العدل: نسبة كل بيت مقرّبة × مساحته، وكل القطع
+    const us = units(p);
+    const num = us.reduce((a, u) => a + unitPct(u) * wt(u), 0) + (+p.adl.extraWeighted || 0);
+    const den = us.reduce((a, u) => a + wt(u), 0) + (+p.adl.missingWeight || 0);
+    return den ? Math.round(num / den) : 0;
+  }
+  return +wavgX(units(p), u => wavgX(u.stages, s => s.pct, wt), wt).toFixed(2);
+};
 const housePct = (m, h) => wavg(m.stages, s => pct(h.prog[s.id]), wt);
 const modelPct = m => +wavgX(m.houses, h => wavgX(m.stages, s => pct(h.prog[s.id]), wt), wt).toFixed(2);
 const unitById = (p, id) => units(p).find(u => u.id === id);
@@ -1909,8 +1917,12 @@ async function adlLoadLots() {
   }
   let weights = {};
   try { const w = await adlFetch('settings/stageWeights'); if (w && w.fields) { const m = fsMap(w.fields); weights = m.weights && typeof m.weights === 'object' ? m.weights : m; } } catch (e) { weights = {}; }
-  return { lots, weights };
+  let customs = null;
+  try { const c = await adlFetch('settings/stageCustoms'); if (c && c.fields) customs = fsMap(c.fields); } catch (e) { customs = null; }
+  return { lots, weights, customs };
 }
+const ADL_TOTAL = 792;
+const adlArea = t => { if (!t) return null; const s = toLatin(String(t)).trim(); const m = s.match(/(\d+(?:\.\d+)?)\s*[×xX*]\s*(\d+(?:\.\d+)?)/); if (m) return parseFloat(m[1]) * parseFloat(m[2]); const n = s.match(/(\d+(?:\.\d+)?)/); return n ? parseFloat(n[1]) : null; };
 const adlPct = v => typeof v === 'string' ? (v === 'done' ? 100 : v === 'wip' ? 50 : 0) : v && typeof v === 'object' ? pct(v.pct) : pct(v);
 
 const ACT = {
@@ -2052,35 +2064,57 @@ const ACT = {
     if (!need('admin')) return;
     const p = S.p;
     if (!p || p.type !== 'complex') return;
-    if (!confirm(`تحديث نسب إنجاز "${p.name}" لتطابق نظام إدارة مجمع العدل؟\nسيتم اعتماد الفقرات الـ ${ADL_STAGES.length} نفسها لكل النماذج، وتُنقل الفقرات الأخرى إلى سلة المهملات.`)) return;
+    if (!confirm(`تحديث نسب إنجاز "${p.name}" لتطابق نظام إدارة مجمع العدل؟\nسيُحسب الإنجاز بنفس طريقة نظام العدل (مساحة كل بيت، وكل القطع الـ ${ADL_TOTAL})، وتُعتمد فقرات نظام العدل لكل النماذج، والفقرات الأخرى تُنقل إلى سلة المهملات.`)) return;
     toast('جارٍ جلب البيانات من نظام مجمع العدل…');
-    const { lots, weights } = await adlLoadLots();
-    const lotKeys = Object.keys(lots || {});
-    if (!lotKeys.length) return toast('لم أجد بيانات منازل في نظام مجمع العدل', 'err');
-    let houses = 0, missing = 0, values = 0, unknown = new Set();
-    lotKeys.forEach(k => Object.keys((lots[k] && lots[k].stages) || {}).forEach(id => { if (!ADL_IDS.includes(id)) unknown.add(id); }));
+    const { lots, weights, customs } = await adlLoadLots();
+    if (!Object.keys(lots || {}).length) return toast('لم أجد بيانات منازل في نظام مجمع العدل', 'err');
+    // قائمة فقرات نظام العدل كما هي هناك: الأساسية ناقص المخفية زائد المضافة، وبأوزانه المعدّلة
+    const hidden = new Set((customs && customs.hidden) || []);
+    const list = ADL_STAGES.map(([n, k, w, c], i) => ({ aid: ADL_IDS[i], name: n, k, w, cat: c })).filter(s => !hidden.has(s.aid));
+    ((customs && customs.added) || []).forEach(s => { if (s && s.id && s.name && !hidden.has(s.id)) list.push({ aid: s.id, name: s.name, k: '', w: +s.w || 1, cat: s.cat || '' }); });
+    list.forEach(s => { const ow = weights[s.aid]; if (ow != null && ow !== '' && !isNaN(+ow)) s.w = +ow; });
+    const lotPct = lot => { // مطابقة لـ calcHouseProgress في نظام العدل
+      const st = (lot && lot.stages) || {}; let tw = 0, dw = 0;
+      list.forEach(s => { tw += s.w; dw += s.w * adlPct(st[s.aid]) / 100; });
+      return tw ? Math.round(dw / tw * 100) : 0;
+    };
+    const areas = []; for (let n = 1; n <= ADL_TOTAL; n++) { const a = adlArea(lots[n] && lots[n].area); if (a > 0) areas.push(a); }
+    const defA = areas.length ? areas.reduce((a, b) => a + b, 0) / areas.length : 150;
+    const areaOf = n => { const a = adlArea(lots[n] && lots[n].area); return a > 0 ? a : defA; };
+    const mine = new Set();
+    let houses = 0, missing = 0;
     for (const m of p.models) {
       const byName = new Map(m.stages.map(s => [s.name, s]));
-      const stages = ADL_STAGES.map(([n, k, w, c], i) => {
-        const old = byName.get(n);
-        if (old) byName.delete(n);
-        const ow = weights[ADL_IDS[i]];
-        return { id: old ? old.id : uid(), name: n, test: old && old.test ? old.test : resolveCat(p, k), w: ow != null && !isNaN(+ow) ? +ow : w, cat: c };
+      const stages = list.map(s => {
+        const old = byName.get(s.name);
+        if (old) byName.delete(s.name);
+        return { id: old ? old.id : uid(), name: s.name, test: old && old.test ? old.test : resolveCat(p, s.k), w: s.w, cat: s.cat, aid: s.aid };
       });
       for (const s of byName.values()) await trashPut('stage', `${s.name} — ${m.name}`, { ownerId: m.id, item: s }, p.id);
       m.stages = stages;
       m.houses.forEach(h => {
-        const lot = lots[h.no] || lots[String(h.no)];
+        const lot = lots[h.no];
+        mine.add(+h.no);
+        if (lot) houses++; else missing++;
         const prog = {};
-        if (!lot) missing++; else houses++;
-        stages.forEach((s, i) => { const v = lot && lot.stages ? adlPct(lot.stages[ADL_IDS[i]]) : 0; if (v) { prog[s.id] = v; values++; } });
+        stages.forEach(s => { const v = lot && lot.stages ? adlPct(lot.stages[s.aid]) : 0; if (v) prog[s.id] = v; });
         h.prog = prog;
+        h.w = Math.round(areaOf(h.no) * 100) / 100;
       });
     }
+    // القطع الموجودة في نظام العدل وغير المضافة لهذا المشروع تدخل في الحساب كما يحسبها نظام العدل
+    let missingWeight = 0, extraWeighted = 0, extraLots = 0;
+    for (let n = 1; n <= ADL_TOTAL; n++) {
+      if (mine.has(n)) continue;
+      const a = areaOf(n); missingWeight += a;
+      const lot = lots[n];
+      if (lot && lot.stages && Object.keys(lot.stages).length) { extraWeighted += lotPct(lot) * a; extraLots++; }
+    }
+    p.adl = { total: ADL_TOTAL, missingWeight, extraWeighted, extraLots, defArea: defA, syncedAt: new Date().toISOString() };
     logP(p, { kind: 'stages', text: `مزامنة الإنجاز من نظام مجمع العدل (${houses} منزل)` });
     if (!(await saveDoc())) return;
     render();
-    toast(`تمت المزامنة: ${houses} منزل مطابق، ${values} قيمة إنجاز${missing ? `، ${missing} منزل غير موجود في نظام العدل` : ''}${unknown.size ? `، وتجاهلت ${unknown.size} فقرة غير معروفة` : ''}`, 'ok');
+    toast(`تمت المزامنة: نسبة المشروع ${projectPct(p)}% · ${houses} منزل مطابق${missing ? `، ${missing} منزل غير موجود في نظام العدل` : ''}${extraLots ? `، و${extraLots} قطعة من نظام العدل غير مضافة هنا دخلت في الحساب` : ''}`, 'ok');
   },
   'add-adl': (d, el) => {
     const f = el.closest('form'), list = f.querySelector('.slist');
@@ -2316,7 +2350,7 @@ const FORMS = {
       if (n < 1 || n > 500) return toast('أدخل عدد البنايات (1 – 500)', 'err');
       for (let i = 1; i <= n; i++) p.buildings.push({ id: uid(), name: 'بناية ' + i, color: PALETTE[(i - 1) % PALETTE.length], stages: makeStages(p, true), note: '' });
     }
-    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null, status: p.status || {} };
+    const data = { models: p.models, buildings: p.buildings, testCats: p.testCats.map(c => ({ id: c.id, name: c.name })), nextNo: p.nextNo, periods: p.periods || [], kind: p.kind || null, status: p.status || {}, adl: p.adl || null };
     const row = await q(sb.from('projects').insert({
       name, type, client: (fd.get('client') || '').trim(), location: (fd.get('location') || '').trim(),
       color: PALETTE[S.projects.length % PALETTE.length], data, updated_by: S.user.id
