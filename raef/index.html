@@ -283,6 +283,8 @@ table.sheet td{background:#fff;text-align:center}
   #statusSheet,#statusSheet *{visibility:visible}
   #statusSheet{position:absolute;top:0;left:0;right:0;box-shadow:none;border:none;margin:0;padding:0}
 }
+.cathd{display:flex;justify-content:space-between;align-items:center;margin:14px 0 4px;padding:7px 12px;border-radius:10px;background:#eef4fb;color:#0b2540;font-weight:700}
+.cathd b{font-size:14px}
 </style>
 </head>
 <body>
@@ -381,6 +383,64 @@ const DEFAULT_STAGES = [
 ];
 const AI_DEFAULT_MODEL = 'gemini-flash-latest';
 const UTIL_STAGES = DEFAULT_STAGES.map(x => x[0]).filter(n => /كهرباء|الأسلاك|مفاتيح|الإنارة|لوحة|الماء|المجاري|المصارف|المغاسل|الحمامات/.test(n));
+/* فقرات الإنجاز نفسها المستخدمة في نظام إدارة مجمع العدل السكني (54 فقرة، مجموع الأوزان 107) */
+const ADL_STAGES = [
+  ['تسوية الموقع والردم والحدل', 'تراب', 3, 'مدني'],
+  ['فرش طبقات السبيس ورصف التربة', 'تراب', 3, 'مدني'],
+  ['صب طبقة التعمية (خرسانة عادية)', 'كونكريت', 2, 'مدني'],
+  ['صب الأساسات (خرسانة مسلحة)', 'كونكريت', 5, 'مدني'],
+  ['البناء تحت البادلو بالحجر', '', 3, 'مدني'],
+  ['صب البادلو (الشناشيل)', 'كونكريت', 2, 'مدني'],
+  ['أساسات المماشي والممرات', '', 1, 'مدني'],
+  ['دفن الأساسات بالرمل ورش مبيد الأرضة', '', 1, 'مدني'],
+  ['بناء الجدران بالحجر (ارتفاع 3.25م)', '', 7, 'مدني'],
+  ['صب السقف والجسور والدرج (خرسانة مسلحة)', 'كونكريت', 8, 'مدني'],
+  ['تطبيق السطح (قير + نايلون + شتايكر)', '', 3, 'مدني'],
+  ['صب الأرضيات والمماشي والمدخل', 'كونكريت', 3, 'مدني'],
+  ['صب أعمدة الواجهة الأمامية', 'كونكريت', 2, 'مدني'],
+  ['تغليف أعمدة الواجهة بالحجر الحلان', '', 2, 'مدني'],
+  ['لبخ الجدران الخارجية والحمامات', '', 2, 'مدني'],
+  ['طلاء الجدران (داخلي وخارجي)', '', 2, 'مدني'],
+  ['تغليف الواجهة بالحجر الحلان والمرمر', '', 3, 'مدني'],
+  ['بياض الجدران والسقوف بالجص الفني', '', 2, 'مدني'],
+  ['تطبيق الأرضيات بالكاشي والمرمر', '', 3, 'مدني'],
+  ['تغليف جدران الحمامات والمطبخ بالسيراميك', '', 2, 'مدني'],
+  ['تطبيق الدرج بالمرمر', '', 1, 'مدني'],
+  ['تنسيق الحديقة والمساحات الخضراء', '', 1, 'مدني'],
+  ['سقيفة وقوف السيارات (كي سبان)', '', 1, 'مدني'],
+  ['صب الساحات الخارجية والممرات', 'كونكريت', 2, 'مدني'],
+  ['نصب الأبواب الخشبية الداخلية', '', 1, 'مدني'],
+  ['تركيب الأبواب الحديدية الرئيسية', '', 1, 'مدني'],
+  ['تركيب الشبابيك والأبواب الألمنيوم والـPVC', '', 2, 'مدني'],
+  ['أعمال السياج الخارجي الكامل', '', 3, 'مدني'],
+  ['أكساء الممرات بالكاشي السداسي', '', 1, 'مدني'],
+  ['مد أنابيب الماء PPR وتوصيلاتها', '', 2, 'صحي'],
+  ['إنشاء الخزان الأرضي (سابتك تنك)', '', 2, 'صحي'],
+  ['تركيب المغاسل والمرايا وتأسيسات الصرف', '', 1, 'صحي'],
+  ['تركيب المقاعد الشرقية وخزانات الطرد', '', 1, 'صحي'],
+  ['تركيب المقاعد الغربية وتوصيلاتها', '', 1, 'صحي'],
+  ['تركيب سنك المطبخ والكاونتر', '', 1, 'صحي'],
+  ['تركيب خزانات الماء ومضخة التصعيد', '', 3, 'صحي'],
+  ['مد أنابيب المجاري PVC', '', 2, 'صحي'],
+  ['تركيب السخانات وربطها بالتأسيسات', '', 2, 'صحي'],
+  ['تركيب لوحات الكهرباء الرئيسية (ATS)', '', 2, 'كهربائي'],
+  ['تركيب لوحات التوزيع (سيركت بريكر)', '', 1, 'كهربائي'],
+  ['مد الكابلات الرئيسية (4×35 مم²)', '', 2, 'كهربائي'],
+  ['تسليك وتركيب الإنارة الداخلية', '', 2, 'كهربائي'],
+  ['تركيب بلك سويج 13 أمبير', '', 1, 'كهربائي'],
+  ['تركيب بلك سويج 32 أمبير', '', 1, 'كهربائي'],
+  ['تركيب مراوح السقف', '', 1, 'كهربائي'],
+  ['تركيب بلك سويج 45 أمبير للمكيفات', '', 1, 'كهربائي'],
+  ['تركيب إنارة الحمامات والساحبات', '', 1, 'كهربائي'],
+  ['تأسيس السخانات الكهربائية', '', 1, 'كهربائي'],
+  ['تركيب إنارة الواجهة الخارجية', '', 1, 'كهربائي'],
+  ['تركيب المكيفات السبلت', '', 2, 'كهربائي'],
+  ['تركيب منظومة كاميرات المراقبة', '', 1, 'كهربائي'],
+  ['مد الكابلات الرئيسية من المصدر (4×50)', '', 1, 'كهربائي'],
+  ['تركيب المولدة الكاتم وخزان الوقود', '', 1, 'كهربائي'],
+  ['منظومة الإنذار المبكر للحريق', '', 1, 'كهربائي']
+];
+const CAT_ICON = { 'مدني': '🧱', 'صحي': '🔧', 'كهربائي': '⚡' };
 
 const IC = {
   home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
@@ -681,13 +741,13 @@ function units(p) {
   if (p.type === 'complex') {
     p.models.forEach(m => m.houses.forEach(h => out.push({
       id: h.id, no: h.no, label: 'منزل ' + h.no, color: m.color, group: m.name, model: m, house: h, w: wt(h),
-      stages: m.stages.map(s => ({ id: s.id, name: s.name, test: s.test, w: wt(s), pct: pct(h.prog[s.id]) }))
+      stages: m.stages.map(s => ({ id: s.id, name: s.name, test: s.test, w: wt(s), cat: s.cat || '', pct: pct(h.prog[s.id]) }))
     })));
     out.sort((a, b) => a.no - b.no);
   }
   p.buildings.forEach(b => out.push({
     id: b.id, no: null, label: b.name, color: b.color, group: b.kind === 'infra' ? 'بنية تحتية' : '', building: b, w: wt(b),
-    stages: b.stages.map(s => ({ id: s.id, name: s.name, test: s.test, w: wt(s), pct: pct(s.pct) }))
+    stages: b.stages.map(s => ({ id: s.id, name: s.name, test: s.test, w: wt(s), cat: s.cat || '', pct: pct(s.pct) }))
   }));
   return out;
 }
@@ -719,6 +779,7 @@ function matchUnit(p, txt) {
 const catName = (p, id) => { const c = p.testCats.find(x => x.id === id); return c ? c.name : ''; };
 const hasTest = (p, unitId, catId) => { const c = p.testCats.find(x => x.id === catId); return !!c && c.records.some(r => r.unitId === unitId); };
 const resolveCat = (p, key) => key ? ((p.testCats.find(c => c.name.includes(key)) || {}).id || '') : '';
+const makeAdlStages = p => ADL_STAGES.map(([n, k, w, c]) => ({ id: uid(), name: n, test: resolveCat(p, k), w, cat: c }));
 const makeStages = (p, withPct) => DEFAULT_STAGES.map(([n, k]) => Object.assign({ id: uid(), name: n, test: resolveCat(p, k) }, withPct ? { pct: 0 } : {}));
 const toLabel = l => l.startsWith('منزل') ? 'لل' + l : 'لـ' + l;
 const doneText = (s, label) => s.name.startsWith('صب') ? `تم ${s.name} ${toLabel(label)}` : `اكتمل "${s.name}" في ${label}`;
@@ -1236,7 +1297,7 @@ function modelForm(p, m) {
 
 function stageRow(p, s, withPct) {
   const st = can('stages'), pr = can('progress');
-  return `<div class="srow ${withPct ? '' : 'nopct'}" data-sid="${s.id || ''}">
+  return `<div class="srow ${withPct ? '' : 'nopct'}" data-sid="${s.id || ''}" data-cat="${esc(s.cat || '')}">
     <input data-k="name" value="${esc(s.name)}" placeholder="اسم الفقرة" ${st ? '' : 'disabled'}>
     <select data-k="test" ${st ? '' : 'disabled'}>${catOptions(p, s.test)}</select>
     <input data-k="w" type="number" min="0" step="0.5" title="وزن الفقرة في الإنجاز" value="${wt(s)}" ${st ? '' : 'disabled'}>
@@ -1250,7 +1311,7 @@ function stagesForm(p, m) {
     <label>النموذج<select data-chg="stg-model">${p.models.map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.name)} (${x.houses.length} منزل)</option>`).join('')}</select></label>
     <p class="muted small" style="margin:0">رتّب فقرات الإنجاز، وحدد وزن كل فقرة (أهميتها في نسبة الإنجاز)، والفحص المختبري المطلوب لها. ويمكنك إضافة فقرة جديدة.</p>
     <div class="slist">${m.stages.map(s => stageRow(p, s, false)).join('')}</div>
-    <div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="0">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق التفصيلية (يستبدل البنود القديمة)</button></div>
+    <div class="row" style="gap:8px"><button type="button" class="ghost sm" data-act="add-srow" data-pct="0">+ إضافة فقرة</button><button type="button" class="ghost sm" data-act="add-adl">⬇ فقرات مجمع العدل (54 فقرة)</button><button type="button" class="ghost sm" data-act="add-utils">+ فقرات المرافق التفصيلية (يستبدل البنود القديمة)</button></div>
     ${p.models.length > 1 ? '<label class="chk"><input type="checkbox" name="all"> تطبيق نفس الفقرات على كل النماذج (تبقى النسب للفقرات التي لها نفس الاسم)</label>' : ''}
     <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ الفقرات</button></div>
   </form>`;
@@ -1259,13 +1320,15 @@ function stagesForm(p, m) {
 function houseForm(p, u) {
   const pr = can('progress');
   const tests = p.testCats.flatMap(c => c.records.filter(r => r.unitId === u.id).map(r => ({ c, r })));
-  const rows = u.stages.map(s => {
+  const catHead = c => `<div class="cathd"><span>${CAT_ICON[c] || ''} ${esc(c)}</span><b>${fmtP(wavgX(u.stages.filter(x => x.cat === c), x => x.pct, wt))}%</b></div>`;
+  const rows = u.stages.map((s, i) => {
+    const head = s.cat && (i === 0 || u.stages[i - 1].cat !== s.cat) ? catHead(s.cat) : '';
     let tb = '';
     if (s.test) {
       const cn = catName(p, s.test);
       tb = hasTest(p, u.id, s.test) ? `<span class="tb ok">✓ ${esc(cn)}</span>` : s.pct >= 100 ? `<span class="tb bad">⚠ ${esc(cn)} مطلوبة</span>` : `<span class="tb">${esc(cn)}</span>`;
     }
-    return `<div class="hst"><div><b>${esc(s.name)}</b> <small class="muted">· ثقل ${wt(s)}</small>${tb}</div>
+    return head + `<div class="hst"><div><b>${esc(s.name)}</b> <small class="muted">· ثقل ${wt(s)}</small>${tb}</div>
       <div class="rng"><input type="range" name="s_${s.id}" min="0" max="100" step="5" value="${s.pct}" ${pr ? '' : 'disabled'}><output>${s.pct}%</output>
       ${pr ? `<button type="button" class="ghost sm" data-act="full" data-target="s_${s.id}">100%</button>` : ''}</div></div>`;
   }).join('');
@@ -1611,6 +1674,7 @@ function moveRow(el, dir) {
 function readStageRows(form) {
   return $$('.srow', form).map(r => ({
     id: r.dataset.sid || '',
+    cat: r.dataset.cat || '',
     name: r.querySelector('[data-k=name]').value.trim(),
     test: r.querySelector('[data-k=test]').value,
     w: (() => { const el = r.querySelector('[data-k=w]'); const v = el ? parseFloat(el.value) : 1; return isNaN(v) || v < 0 ? 1 : v; })(),
@@ -1953,6 +2017,21 @@ const ACT = {
     if (i) { i.value = 100; i.dispatchEvent(new Event('input', { bubbles: true })); }
   },
 
+  'add-adl': (d, el) => {
+    const f = el.closest('form'), list = f.querySelector('.slist');
+    const m = getM(S.p, f.dataset.m);
+    const hasProg = sid => !!m && m.houses.some(h => pct(h.prog[sid]) > 0);
+    const byName = new Map([...f.querySelectorAll('.srow')].map(r => [r.querySelector('[data-k=name]').value.trim(), r]));
+    const html = ADL_STAGES.map(([n, k, w, c]) => {
+      const old = byName.get(n);
+      if (old) byName.delete(n);
+      return stageRow(S.p, { id: old ? old.dataset.sid : '', name: n, test: resolveCat(S.p, k), w, cat: c }, false);
+    }).join('');
+    const kept = [...byName.values()].filter(r => r.dataset.sid && hasProg(r.dataset.sid));
+    list.innerHTML = html;
+    kept.forEach(r => list.appendChild(r));
+    toast(`تم تحميل ${ADL_STAGES.length} فقرة من مجمع العدل${kept.length ? `، وبقيت ${kept.length} فقرة قديمة لأن عليها إنجاز (احذفها يدوياً إن أردت)` : ''}. اضغط "حفظ الفقرات" للتطبيق`, 'ok');
+  },
   'add-utils': (d, el) => {
     const f = el.closest('form');
     const list = f.querySelector('.slist');
@@ -2163,7 +2242,7 @@ const FORMS = {
       if (!defs.length) return toast('أضف نموذجاً واحداً على الأقل', 'err');
       if (defs.reduce((a, x) => a + x[1], 0) > 5000) return toast('الحد الأعلى 5000 منزل للمشروع', 'err');
       defs.forEach(([n, c, a], i) => {
-        const m = { id: uid(), name: n, area: a, color: PALETTE[i % PALETTE.length], stages: makeStages(p, false), houses: [] };
+        const m = { id: uid(), name: n, area: a, color: PALETTE[i % PALETTE.length], stages: makeAdlStages(p), houses: [] };
         for (let k = 0; k < c; k++) m.houses.push({ id: uid(), no: p.nextNo++, prog: {}, note: '', w: a > 0 ? a : 1 });
         p.models.push(m);
       });
@@ -2248,12 +2327,12 @@ const FORMS = {
     };
     const kept = new Set(rows.map(r => r.id).filter(Boolean));
     for (const s of m.stages.filter(s => !kept.has(s.id))) await trashPut('stage', `${s.name} — ${m.name}`, { ownerId: m.id, item: s }, p.id);
-    apply(m, rows.map(r => ({ id: r.id || uid(), name: r.name, test: r.test, w: r.w })));
+    apply(m, rows.map(r => ({ id: r.id || uid(), name: r.name, test: r.test, w: r.w, cat: r.cat })));
     const all = fd.get('all') === 'on';
     if (all) {
       p.models.filter(x => x !== m).forEach(x => apply(x, rows.map(r => {
         const same = x.stages.find(s => s.name === r.name);
-        return { id: same ? same.id : uid(), name: r.name, test: r.test, w: r.w };
+        return { id: same ? same.id : uid(), name: r.name, test: r.test, w: r.w, cat: r.cat };
       })));
     }
     logP(p, { kind: 'stages', text: all ? `رتّب فقرات كل النماذج (${rows.length} فقرة)` : `رتّب فقرات النموذج ${m.name} (${rows.length} فقرة)` });
