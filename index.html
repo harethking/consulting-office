@@ -276,12 +276,29 @@ table.sheet{width:100%;border-collapse:collapse;font-size:14px}
 table.sheet th,table.sheet td{border:1px solid #1f2937;padding:8px 10px;vertical-align:middle}
 table.sheet th{width:42%;background:#5b8fd0;color:#0b1f3a;font-weight:600;text-align:right}
 table.sheet td{background:#fff;text-align:center}
+#printArea{display:none}
+.rep-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0b2540;padding-bottom:8px;margin-bottom:10px;font-size:13px}
+#printArea h2{text-align:center;margin:6px 0;font-size:20px;color:#0b2540}
+.rep-sub{text-align:center;color:#334155;margin-bottom:8px;font-size:13px}
+.rep-sum{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:center;margin:6px 0 12px;font-size:13px}
+table.rep{width:100%;border-collapse:collapse;font-size:12px}
+table.rep th,table.rep td{border:1px solid #1f2937;padding:5px 6px;text-align:center}
+table.rep th{background:#5b8fd0;color:#0b1f3a}
+table.rep thead{display:table-header-group}
+table.rep tr{page-break-inside:avoid}
+table.rep td.bad{color:#b91c1c;font-weight:700}
+table.rep td.ok{color:#15803d;font-weight:700}
+.rep-sign{display:flex;justify-content:space-around;margin-top:40px;font-size:13px}
+.rep-sign div{border-top:1px solid #1f2937;padding-top:6px;min-width:160px;text-align:center}
 @media print{
   @page{size:A4;margin:10mm}
   body{background:#fff}
   body *{visibility:hidden}
-  #statusSheet,#statusSheet *{visibility:visible}
-  #statusSheet{position:absolute;top:0;left:0;right:0;box-shadow:none;border:none;margin:0;padding:0}
+  #statusSheet,#statusSheet *,#printArea,#printArea *{visibility:visible}
+  #statusSheet,#printArea{position:absolute;top:0;left:0;right:0;box-shadow:none;border:none;margin:0;padding:0}
+  #printArea{display:block}
+  body.print-report #statusSheet{display:none}
+  table.rep th,table.sheet th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 .cathd{display:flex;justify-content:space-between;align-items:center;margin:14px 0 4px;padding:7px 12px;border-radius:10px;background:#eef4fb;color:#0b2540;font-weight:700}
 .cathd b{font-size:14px}
@@ -1066,6 +1083,7 @@ function siteComplex(p) {
         <h3>المنازل</h3><span class="grow"></span>
         ${can('stages') ? '<button type="button" class="ghost sm" data-act="stages">الفقرات والأوزان</button>' : ''}
         ${can('progress') ? '<button type="button" class="ghost sm" data-act="bulk">تحديث جماعي</button>' : ''}
+        <button type="button" class="ghost sm" data-act="prog-print">🖨️ طباعة الإنجاز والفحوصات</button>
       </div>
       <div class="row" style="margin-bottom:12px">
         <input style="max-width:170px" placeholder="بحث برقم المنزل" value="${esc(f.q)}" data-filter="q">
@@ -1925,6 +1943,36 @@ const ADL_TOTAL = 792;
 const adlArea = t => { if (!t) return null; const s = toLatin(String(t)).trim(); const m = s.match(/(\d+(?:\.\d+)?)\s*[×xX*]\s*(\d+(?:\.\d+)?)/); if (m) return parseFloat(m[1]) * parseFloat(m[2]); const n = s.match(/(\d+(?:\.\d+)?)/); return n ? parseFloat(n[1]) : null; };
 const adlPct = v => typeof v === 'string' ? (v === 'done' ? 100 : v === 'wip' ? 50 : 0) : v && typeof v === 'object' ? pct(v.pct) : pct(v);
 
+/* ================= طباعة الإنجاز مع المنازل التي لم يُسجَّل لها فحص ================= */
+function testGaps(p, u) {
+  const recs = p.testCats.reduce((a, c) => a + c.records.filter(r => r.unitId === u.id).length, 0);
+  const miss = [...new Set(u.stages.filter(s => s.test && s.pct >= 100 && !hasTest(p, u.id, s.test)).map(s => catName(p, s.test)).filter(Boolean))];
+  return { recs, miss };
+}
+const PRINT_SCOPES = {
+  gap: 'المنازل التي لم يُسجَّل لها فحص أو تنقصها فحوصات مطلوبة',
+  none: 'المنازل التي لم يُسجَّل لها أي فحص',
+  miss: 'المنازل التي تنقصها فحوصات مطلوبة لفقرات مكتملة',
+  all: 'كل المنازل مع حالة الفحوصات'
+};
+function progPrintForm(p) {
+  return `<form data-form="progprint" class="stack">
+    <label>المنازل في التقرير<select name="scope">${Object.entries(PRINT_SCOPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+    ${p.models.length > 1 ? `<label>النموذج<select name="model"><option value="all">كل النماذج</option>${p.models.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>` : ''}
+    <p class="muted small" style="margin:0">"تنقصها فحوصات مطلوبة" تعني فقرة مكتملة 100% مربوطة بفحص مختبري ولم يُسجَّل لها هذا الفحص.</p>
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">🖨️ طباعة / حفظ PDF</button></div>
+  </form>`;
+}
+function printHTML(html) {
+  let el = document.getElementById('printArea');
+  if (!el) { el = document.createElement('div'); el.id = 'printArea'; document.body.appendChild(el); }
+  el.innerHTML = html;
+  document.body.classList.add('print-report');
+  const done = () => { document.body.classList.remove('print-report'); el.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => window.print(), 60);
+}
+
 const ACT = {
   close: () => closeModal(),
   menu: () => document.body.classList.toggle('sideopen'),
@@ -2116,6 +2164,7 @@ const ACT = {
     render();
     toast(`تمت المزامنة: نسبة المشروع ${projectPct(p)}% · ${houses} منزل مطابق${missing ? `، ${missing} منزل غير موجود في نظام العدل` : ''}${extraLots ? `، و${extraLots} قطعة من نظام العدل غير مضافة هنا دخلت في الحساب` : ''}`, 'ok');
   },
+  'prog-print': () => openModal('طباعة الإنجاز والفحوصات', progPrintForm(S.p)),
   'add-adl': (d, el) => {
     const f = el.closest('form'), list = f.querySelector('.slist');
     const m = getM(S.p, f.dataset.m);
@@ -2511,6 +2560,26 @@ const FORMS = {
     p.status.admin = (fd.get('admin') || '').trim();
     logP(p, { kind: 'other', text: 'حدّث موقف المشروع' });
     if (await saveDoc()) { closeModal(); render(); }
+  },
+  progprint: async fd => {
+    const p = S.p, scope = fd.get('scope') || 'gap', mid = fd.get('model') || 'all';
+    let us = units(p);
+    if (mid !== 'all') us = us.filter(u => u.model && u.model.id === mid);
+    const rows = us.map(u => Object.assign({ u, pc: unitPct(u) }, testGaps(p, u)));
+    const pick = rows.filter(r => scope === 'all' || (scope === 'none' ? r.recs === 0 : scope === 'miss' ? r.miss.length > 0 : r.recs === 0 || r.miss.length > 0));
+    const mName = mid !== 'all' ? (p.models.find(m => m.id === mid) || {}).name : '';
+    const html = `<div class="rep-head"><div><b>${esc(S.office.name || OFFICE.name)}</b><div>${esc(p.name)}</div></div><div>تاريخ الطباعة: ${esc(new Date().toLocaleDateString('ar-IQ'))}</div></div>
+      <h2>تقرير نسب الإنجاز والفحوصات المختبرية</h2>
+      <div class="rep-sub">${esc(PRINT_SCOPES[scope] || '')}${mName ? ' — ' + esc(mName) : ''}</div>
+      <div class="rep-sum"><span>نسبة إنجاز المشروع: <b>${fmtP(projectPct(p))}%</b></span><span>منازل التقرير: <b>${pick.length}</b></span>
+        <span>بدون أي فحص: <b>${rows.filter(r => r.recs === 0).length}</b></span><span>تنقصها فحوصات مطلوبة: <b>${rows.filter(r => r.miss.length).length}</b></span></div>
+      <table class="rep"><thead><tr><th>ت</th><th>المنزل</th><th>النموذج</th><th>نسبة الإنجاز</th><th>الفحوصات المسجلة</th><th>الفحوصات المطلوبة غير المسجلة</th></tr></thead><tbody>
+      ${pick.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.u.label)}</td><td>${esc(r.u.group || '')}</td><td class="${r.pc >= 100 ? 'ok' : ''}">${r.pc}%</td>
+        <td class="${r.recs ? '' : 'bad'}">${r.recs || 'لا يوجد'}</td><td class="${r.miss.length ? 'bad' : ''}">${r.miss.length ? esc(r.miss.join('، ')) : '—'}</td></tr>`).join('') || '<tr><td colspan="6">لا توجد منازل مطابقة</td></tr>'}
+      </tbody></table>
+      <div class="rep-sign"><div>المهندس المقيم</div><div>مدير المشروع</div></div>`;
+    closeModal();
+    printHTML(html);
   },
   period: async fd => {
     if (!need('progress')) return;
