@@ -994,6 +994,7 @@ function viewPDash(p) {
   return `<div class="phead" style="--c:${esc(p.color)}">
       <div class="row"><div><h2>${esc(p.name)}</h2><div class="small" style="opacity:.9">${projLabel(p)}${p.client ? ' · ' + esc(p.client) : ''}${p.location ? ' · ' + esc(p.location) : ''}</div></div>
         <span class="grow"></span>
+        ${isAdmin() && OFFICE.id === 1 && p.type === 'complex' ? '<button type="button" class="ghost sm" data-act="adl-sync">🔄 مزامنة الإنجاز من نظام مجمع العدل</button>' : ''}
         ${isAdmin() ? `<button type="button" class="ghost sm" data-act="edit-project">تعديل</button><button type="button" class="danger sm" data-act="del-project">حذف المشروع</button>` : ''}
       </div>
       <div style="margin-top:12px">${bar(projectPct(p), '#fff', 'نسبة الإنجاز الكلية')}</div>
@@ -1882,6 +1883,36 @@ function statusForm(p) {
     <div><button class="primary">حفظ</button></div></form>`;
 }
 
+/* ================= مزامنة الإنجاز من نظام إدارة مجمع العدل (Firebase) ================= */
+const ADL_FB = { project: 'ad1-warehouse', key: 'AIzaSyDMYCoW_8FbvgPzkRkD1q9gR_PpadY8vHM' };
+const ADL_IDS = ADL_STAGES.map((s, i) => { const c = s[3]; const civ = ADL_STAGES.filter(x => x[3] === c); const n = civ.indexOf(s) + 1; return (c === 'مدني' ? 'civil_' : c === 'صحي' ? 'sanit_' : 'elec_') + n; });
+const fsVal = v => v == null ? null : 'stringValue' in v ? v.stringValue : 'integerValue' in v ? +v.integerValue : 'doubleValue' in v ? +v.doubleValue
+  : 'booleanValue' in v ? v.booleanValue : 'mapValue' in v ? fsMap(v.mapValue.fields || {}) : 'arrayValue' in v ? (v.arrayValue.values || []).map(fsVal) : null;
+const fsMap = f => Object.fromEntries(Object.entries(f || {}).map(([k, x]) => [k, fsVal(x)]));
+async function adlFetch(path) {
+  const r = await fetch(`https://firestore.googleapis.com/v1/projects/${ADL_FB.project}/databases/(default)/documents/${path}${path.includes('?') ? '&' : '?'}key=${ADL_FB.key}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('تعذر الاتصال بنظام مجمع العدل (' + r.status + ')');
+  return r.json();
+}
+async function adlLoadLots() {
+  const doc = await adlFetch('site_map/lots');
+  let lots = doc && doc.fields ? fsMap(doc.fields).lots : null;
+  if (!lots || !Object.keys(lots).length) {
+    lots = {};
+    const list = await adlFetch('site_map?pageSize=1000');
+    ((list && list.documents) || []).forEach(d => {
+      const id = d.name.split('/').pop(), v = fsMap(d.fields);
+      if (v.lots && typeof v.lots === 'object') Object.assign(lots, v.lots);
+      else { const n = parseInt(String(id).replace(/\D/g, ''), 10); if (n && v.stages) lots[n] = v; }
+    });
+  }
+  let weights = {};
+  try { const w = await adlFetch('settings/stageWeights'); if (w && w.fields) { const m = fsMap(w.fields); weights = m.weights && typeof m.weights === 'object' ? m.weights : m; } } catch (e) { weights = {}; }
+  return { lots, weights };
+}
+const adlPct = v => typeof v === 'string' ? (v === 'done' ? 100 : v === 'wip' ? 50 : 0) : v && typeof v === 'object' ? pct(v.pct) : pct(v);
+
 const ACT = {
   close: () => closeModal(),
   menu: () => document.body.classList.toggle('sideopen'),
@@ -2017,6 +2048,40 @@ const ACT = {
     if (i) { i.value = 100; i.dispatchEvent(new Event('input', { bubbles: true })); }
   },
 
+  'adl-sync': async () => {
+    if (!need('admin')) return;
+    const p = S.p;
+    if (!p || p.type !== 'complex') return;
+    if (!confirm(`تحديث نسب إنجاز "${p.name}" لتطابق نظام إدارة مجمع العدل؟\nسيتم اعتماد الفقرات الـ ${ADL_STAGES.length} نفسها لكل النماذج، وتُنقل الفقرات الأخرى إلى سلة المهملات.`)) return;
+    toast('جارٍ جلب البيانات من نظام مجمع العدل…');
+    const { lots, weights } = await adlLoadLots();
+    const lotKeys = Object.keys(lots || {});
+    if (!lotKeys.length) return toast('لم أجد بيانات منازل في نظام مجمع العدل', 'err');
+    let houses = 0, missing = 0, values = 0, unknown = new Set();
+    lotKeys.forEach(k => Object.keys((lots[k] && lots[k].stages) || {}).forEach(id => { if (!ADL_IDS.includes(id)) unknown.add(id); }));
+    for (const m of p.models) {
+      const byName = new Map(m.stages.map(s => [s.name, s]));
+      const stages = ADL_STAGES.map(([n, k, w, c], i) => {
+        const old = byName.get(n);
+        if (old) byName.delete(n);
+        const ow = weights[ADL_IDS[i]];
+        return { id: old ? old.id : uid(), name: n, test: old && old.test ? old.test : resolveCat(p, k), w: ow != null && !isNaN(+ow) ? +ow : w, cat: c };
+      });
+      for (const s of byName.values()) await trashPut('stage', `${s.name} — ${m.name}`, { ownerId: m.id, item: s }, p.id);
+      m.stages = stages;
+      m.houses.forEach(h => {
+        const lot = lots[h.no] || lots[String(h.no)];
+        const prog = {};
+        if (!lot) missing++; else houses++;
+        stages.forEach((s, i) => { const v = lot && lot.stages ? adlPct(lot.stages[ADL_IDS[i]]) : 0; if (v) { prog[s.id] = v; values++; } });
+        h.prog = prog;
+      });
+    }
+    logP(p, { kind: 'stages', text: `مزامنة الإنجاز من نظام مجمع العدل (${houses} منزل)` });
+    if (!(await saveDoc())) return;
+    render();
+    toast(`تمت المزامنة: ${houses} منزل مطابق، ${values} قيمة إنجاز${missing ? `، ${missing} منزل غير موجود في نظام العدل` : ''}${unknown.size ? `، وتجاهلت ${unknown.size} فقرة غير معروفة` : ''}`, 'ok');
+  },
   'add-adl': (d, el) => {
     const f = el.closest('form'), list = f.querySelector('.slist');
     const m = getM(S.p, f.dataset.m);
