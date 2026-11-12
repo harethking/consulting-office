@@ -1096,6 +1096,7 @@ function siteComplex(p) {
       <div class="hgrid">${tiles || '<div class="empty" style="grid-column:1/-1">لا توجد منازل مطابقة</div>'}</div>
     </div>
     <div class="card"><div class="row" style="margin-bottom:10px"><h3>المباني والبنى التحتية الإضافية</h3><span class="grow"></span>
+      ${(isAdmin() || can('stages')) && p.buildings.length ? '<button type="button" class="ghost sm" data-act="bld-weights">⚖️ أوزان المباني</button>' : ''}
       ${isAdmin() ? '<button type="button" class="ghost sm" data-act="add-bld">+ إضافة مبنى / بنية تحتية</button>' : ''}</div>
       ${extras.length ? `<div class="grid">${extras.map(u => `<div class="ent" style="--c:${u.color}" data-act="open-bld" data-id="${u.id}"><div class="row"><b class="grow">${esc(u.label)}</b><span class="badge">${esc(u.group)}</span></div><div class="small muted" style="margin-top:4px">الوزن ${fmtN(wt(u))} · ${weightShare(p, u)}% من المشروع</div><div style="margin-top:8px">${bar(unitPct(u), u.color)}</div><div class="small muted">الوزن: ${u.w} · ${u.stages.length} فقرة</div></div>`).join('')}</div>` : '<div class="muted small">لا توجد مبانٍ أو بنى تحتية مضافة. تُحسب نسبتها ضمن الإنجاز الكلي عند إضافتها.</div>'}</div>
     <div class="card"><h3 style="margin-bottom:10px">الإنجاز حسب الفقرة (كل المنازل)</h3><div class="sumst">${stageSum || '<span class="muted">لا توجد فقرات</span>'}</div></div>`;
@@ -1117,6 +1118,7 @@ function siteBuildings(p) {
       <div class="tile t2">مكتملة<b>${us.filter(u => unitPct(u) >= 100).length}</b></div>
     </div>
     <div class="card"><div class="row" style="margin-bottom:12px"><h3>البنايات</h3><span class="grow"></span>
+      ${(isAdmin() || can('stages')) && p.buildings.length ? '<button type="button" class="ghost sm" data-act="bld-weights">⚖️ أوزان المباني</button>' : ''}
       ${isAdmin() ? '<button type="button" class="ghost" data-act="add-bld">+ إضافة مبنى / بنية تحتية</button>' : ''}</div>
       <div class="grid">${cards || '<div class="empty">لا توجد بنايات</div>'}</div></div>`;
 }
@@ -1986,6 +1988,21 @@ function printHTML(html) {
   setTimeout(() => window.print(), 60);
 }
 
+/* ================= شاشة أوزان كل المباني والبنى التحتية ================= */
+function bldWeightsForm(p) {
+  const hw = units(p).filter(u => u.house).map(u => wt(u));
+  const info = hw.length ? `<p class="muted small" style="margin:0">المنازل: ${hw.length} منزل، مجموع أوزانها ${fmtN(hw.reduce((a, x) => a + x, 0))}، ومتوسط المنزل الواحد ${fmtN(hw.reduce((a, x) => a + x, 0) / hw.length)} (الوزن = المساحة بالمتر²).</p>` : '';
+  const rows = p.buildings.map(b => `<div class="row" style="gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #e3e9f2">
+      <span class="dot" style="background:${esc(b.color || '#999')}"></span><b class="grow">${esc(b.name)}</b>
+      <span class="badge">${b.kind === 'infra' ? 'بنية تحتية' : 'مبنى'}</span>
+      <input name="w_${b.id}" inputmode="decimal" value="${fmtN(wt(b))}" style="max-width:110px" aria-label="وزن ${esc(b.name)}">
+      <span class="small muted" style="min-width:64px;text-align:left">${weightShare(p, unitById(p, b.id) || b)}%</span></div>`).join('');
+  return `<form data-form="bldw" class="stack">${info}
+    <div>${rows || '<div class="empty">لا توجد مباني أو بنى تحتية</div>'}</div>
+    <p class="muted small" style="margin:0">النسبة جنب كل خانة هي حصته الحالية من إنجاز المشروع، وتتحدث بعد الحفظ.</p>
+    <div class="foot"><span class="grow"></span><button type="button" class="ghost" data-act="close">إلغاء</button><button class="primary">حفظ الأوزان</button></div></form>`;
+}
+
 const ACT = {
   close: () => closeModal(),
   menu: () => document.body.classList.toggle('sideopen'),
@@ -2216,6 +2233,7 @@ const ACT = {
     if (!missing.length && !removed) return toast('فقرات المرافق موجودة بالفعل');
     toast(`أُضيفت ${missing.length} فقرة${removed ? '، وأُزيلت ' + removed + ' قديمة' : ''}${kept ? '، وبقيت ' + kept + ' قديمة لأن عليها نسب إنجاز' : ''}. اضغط حفظ`, 'ok');
   },
+  'bld-weights': () => openModal('أوزان المباني والبنى التحتية', bldWeightsForm(S.p)),
   'add-bld': () => { if (need('admin')) openModal('إضافة بناية', buildingForm(S.p, null)); },
   'open-bld': d => { const b = S.p.buildings.find(x => x.id === d.id); if (b) openModal(b.name, buildingForm(S.p, b)); },
   'del-bld': async d => {
@@ -2599,6 +2617,21 @@ const FORMS = {
       <div class="rep-sign"><div>المهندس المقيم</div><div>مدير المشروع</div></div>`;
     closeModal();
     printHTML(html);
+  },
+  bldw: async fd => {
+    if (!(isAdmin() || can('stages'))) return toast('ليس لديك صلاحية تعديل الأوزان', 'err');
+    const p = S.p;
+    let n = 0;
+    p.buildings.forEach(b => {
+      const raw = toLatin(String(fd.get('w_' + b.id) || '')).replace(/[,،٫]/g, '.').trim();
+      if (raw === '' || isNaN(parseFloat(raw))) return;
+      const nw = Math.max(0, parseFloat(raw));
+      if (nw === wt(b)) return;
+      logP(p, { kind: 'stages', unitId: b.id, text: `غيّر وزن ${b.name} من ${fmtN(wt(b))} إلى ${fmtN(nw)}` });
+      b.w = nw; n++;
+    });
+    if (!n) { closeModal(); return toast('لا توجد تغييرات'); }
+    if (await saveDoc()) { closeModal(); render(); toast(`تم تحديث وزن ${n} ${n === 1 ? 'وحدة' : 'وحدات'}`, 'ok'); }
   },
   period: async fd => {
     if (!need('progress')) return;
